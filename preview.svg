@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="360" viewBox="0 0 960 360">
+  <rect width="960" height="360" rx="12" fill="#0b0b0e"/>
+  <rect x="1" y="1" width="958" height="358" rx="11" fill="none" stroke="#29272e"/>
+  <path d="M1 40H959" stroke="#29272e"/>
+  <g font-family="DejaVu Sans,sans-serif" font-size="12" fill="#98949e">
+    <text x="20" y="26">Terminal</text>
+    <text x="940" y="26" text-anchor="end">Herdr Link Hints</text>
+  </g>
+  <g font-family="DejaVu Sans Mono,monospace" font-size="14">
+    <text x="24" y="78" fill="#b8b5c0">$ npm test</text>
+    <text x="24" y="106" fill="#89b995">All checks passed.</text>
+    <text x="24" y="148" fill="#b8b5c0">Docs: https://example.com/docs</text>
+    <text x="24" y="176" fill="#b8b5c0">Review: https://example.org/review</text>
+    <text x="24" y="218" fill="#b8b5c0">$</text>
+    <rect x="41" y="203" width="8" height="18" fill="#b8b5c0"/>
+  </g>
+  <g transform="translate(448 208)">
+    <rect width="500" height="140" rx="8" fill="#151218" stroke="#343039"/>
+    <g font-family="DejaVu Sans,sans-serif" font-size="12">
+      <text x="12" y="24" fill="#f0edf4" font-weight="600">Links</text>
+      <text x="486" y="24" fill="#a09aa7" text-anchor="end">2</text>
+      <rect x="10" y="34" width="480" height="30" rx="4" fill="#302c34"/>
+      <text x="54" y="54" fill="#f0edf4">https://example.com/docs</text>
+      <text x="54" y="86" fill="#f0edf4">https://example.org/review</text>
+      <path d="M12 101H488" stroke="#343039"/>
+      <text x="12" y="123" fill="#a09aa7" font-size="11">Hint / Enter opens · Shift copies · Esc closes</text>
+    </g>
+    <g font-family="DejaVu Sans Mono,monospace" font-size="13" fill="#7b9be8" font-weight="600">
+      <text x="20" y="54">S</text>
+      <text x="20" y="86">A</text>
+    </g>
+  </g>
+</svg>

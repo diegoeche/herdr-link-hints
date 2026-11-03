@@ -1,0 +1,10 @@
+{
+  "place": "none",
+  "title": "Link hints",
+  "overlay": {
+    "kind": "popup",
+    "at": { "x": 1000000, "y": 1000000 },
+    "width": 480,
+    "height": 300
+  }
+}

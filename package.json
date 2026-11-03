@@ -1,0 +1,12 @@
+{
+  "name": "herdr-desktop-link-hints",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Foot-inspired keyboard link hints for Herdr's desktop app",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --experimental-vm-modules --test tests/*.test.mjs"
+  }
+}

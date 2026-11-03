@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.*
+*.error
+*.log
+.DS_Store
+# Generated locally by herdr-app check; the host supplies these types.
+mods/*/gpui-kit.d.ts
+mods/*/herdr.d.ts
+mods/*/jsconfig.json
