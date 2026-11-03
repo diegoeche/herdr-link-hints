@@ -16,6 +16,7 @@ Development is hosted on Gitea; GitHub is the public push mirror.
 
 - [Herdr desktop app](https://github.com/herdrdev/herdr-app), tested on **0.1.12**.
 - `hc` (herdr-core), available to Herdr. Tested on **0.1.17**.
+- Python 3.8+ for the bundled read-only hyperlink snapshot helper.
 - A default browser for opening links.
 
 This is a desktop **mod**, not a plugin for the older Herdr TUI. No packages
@@ -24,7 +25,8 @@ or additional services are required at runtime.
 ## Install
 
 Clone this repository and read `RECIPE.md`, `mods/link-hints/main.js`, and
-`mods/link-hints/links.js` before installing. Mods run trusted JavaScript.
+`mods/link-hints/links.js`, and `mods/link-hints/snapshot.py` before installing.
+Mods run trusted JavaScript.
 
 1. Find your app folder: `$HERDR_APP_HOME` if set, otherwise
    `~/.config/herdr-app`. Each independently configured profile has its own
@@ -88,9 +90,9 @@ while you type a longer one. Duplicate URLs appear once.
 ## Scope and limitations
 
 - Detects visible `http://`, `https://`, and `www.` addresses.
+- Detects named OSC 8 web hyperlinks, such as “GitHub” with a hidden URL.
 - Reads the focused terminal's **current program screen** once when opened.
   It does not read the app's independently scrolled viewport or its history.
-- Hidden destinations in OSC 8 hyperlinks are unavailable through this API.
 - URLs broken by actual newlines are not joined or guessed.
 - Labels appear in a list. Herdr's current mod API cannot paint badges
   directly onto terminal cells.
@@ -99,8 +101,14 @@ while you type a longer one. Duplicate URLs appear once.
 ## Data access
 
 The mod calls `hc read --json --lines 0 <focused-terminal>` through Herdr's
-`hc()` API. This uses the current profile's connection, including qualified
-remote terminal addresses. It never requests history or sends terminal input.
+`hc()` API for visible URLs. Its bundled Python helper briefly runs
+`hc attach --observe --history 0 <focused-terminal>` to capture the initial
+repaint, including hidden OSC 8 destinations. The observer cannot send input
+or resize the terminal. It closes after a quiet gap, with a five-second
+startup limit and bounded output capture, and cleans up only its own client.
+Both use the current profile and support qualified remote terminal addresses.
+If Python or the observer is unavailable, visible URLs still work and the
+popup shows a notice that named links could not be read.
 
 Terminal text stays in memory while the popup is open. The mod does not
 fetch URLs, record terminal text, use telemetry, or store credentials. It
@@ -140,6 +148,8 @@ herdr-app check "$PWD/mods/link-hints"
 
 The tests cover URL extraction, duplicate handling, hint uniqueness,
 keyboard open/copy/navigation, focus capture, cancellation, and read errors.
+Python tests verify the observer flags, split hyperlink sequences, client
+cleanup, and read failures using a fake `hc` executable.
 The UI harness mocks Herdr, so also inspect the mod in a running app after
 UI changes. Never automate keys on someone else's real terminal to test it.
 

@@ -4,6 +4,8 @@ node_modules/
 *.error
 *.log
 .DS_Store
+__pycache__/
+*.pyc
 # Generated locally by herdr-app check; the host supplies these types.
 mods/*/gpui-kit.d.ts
 mods/*/herdr.d.ts

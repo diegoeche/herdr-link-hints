@@ -1,6 +1,6 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { focused, hc, props, closeOverlay, theme, notify } from "herdr";
+import { focused, hc, exec, appHome, props, closeOverlay, theme, notify } from "herdr";
 import { ALPHABET, extractLinks, labelLinks } from "./links.js";
 
 export default class LinkHints extends View {
@@ -14,6 +14,7 @@ export default class LinkHints extends View {
     this.at = 0;
     this.loading = Boolean(this.terminal);
     this.error = this.terminal ? "" : "Focus a terminal, then press Ctrl+Shift+O.";
+    this.notice = "";
     this.handle = cx.focus_handle();
     this.handle.focus();
     if (!this.terminal) return;
@@ -22,11 +23,21 @@ export default class LinkHints extends View {
       try {
         // One screen-only read per opening. History reads can send scroll
         // input to a full-screen program, so deliberately never request them.
-        const result = await hc(["read", "--json", "--lines", "0", terminal]);
+        const [read, observe] = await Promise.allSettled([
+          hc(["read", "--json", "--lines", "0", terminal]),
+          exec("python3", [appHome() + "/mods/link-hints/snapshot.py", terminal]),
+        ]);
+        if (read.status !== "fulfilled") throw new Error("Could not read this terminal. Close and try again.");
+        const result = read.value;
         if (result.code !== 0) throw new Error("Could not read this terminal. Close and try again.");
         const screen = JSON.parse(result.stdout);
         if (typeof screen.text !== "string") throw new Error("Herdr returned an unreadable terminal screen.");
-        this.links = labelLinks(extractLinks(screen.text));
+        let ansi = "";
+        if (observe.status === "fulfilled" && observe.value.code === 0) {
+          try { ansi = JSON.parse(observe.value.stdout).ansi ?? ""; } catch (_) {}
+        }
+        if (!ansi) this.notice = "Named links unavailable · check Python 3 and hc";
+        this.links = labelLinks(extractLinks(screen.text, ansi));
       } catch (error) {
         this.error = error?.message ?? "Could not read this terminal.";
       }
@@ -120,6 +131,7 @@ export default class LinkHints extends View {
             .text_color(t.accent).child(link.hint.toUpperCase()))
           .child(div().flex_1().min_w(0).truncate().tooltip(link.url).child(link.url)))))
       .child(div().border_t(1).border_color(t.border).pt(6).text_size(10.5).text_color(t.muted)
-        .child("Hint / Enter opens · Shift copies · Esc closes"));
+        .child("Hint / Enter opens · Shift copies · Esc closes"))
+      .when(Boolean(this.notice), el => el.child(div().text_size(10.5).text_color(t.muted).child(this.notice)));
   }
 }

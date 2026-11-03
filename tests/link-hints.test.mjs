@@ -6,6 +6,8 @@ import { URL, fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../mods/link-hints/', import.meta.url));
 const context = vm.createContext({ console });
 const events = { opened: [], copied: [], closed: [], reads: [], notices: [] };
+const observers = [];
+let snapshotResult = {code:0, stdout:JSON.stringify({ansi:'\x1b]8;;https://example.com/\x07Named link\x1b]8;;\x07'})};
 let focus = { terminal: 't1', shown: 'remote/t9', agent: 't2' };
 let screen = { code: 0, stdout: JSON.stringify({ text: 'https://example.com/ https://example.org/?token=a%26b#x' }) };
 const element = () => new Proxy({}, {get: (_, key) => key === 'when'
@@ -21,6 +23,8 @@ const stubs = {
   'gpui-base': { v_flex: element, h_flex: element },
   'herdr': { focused: () => focus,
     hc: async args => {events.reads.push(args); return screen;},
+    exec: async (command, args) => {observers.push([command,args]); return snapshotResult;},
+    appHome: () => '/test/app',
     props: () => ({overlay: 'test-overlay'}), closeOverlay: id => events.closed.push(id),
     theme: () => ({}), notify: value => events.notices.push(value) }
 };
@@ -49,6 +53,13 @@ assert.deepEqual(plain(extractLinks('\x1b[31mhttps://x.test/?t=a%26b#fragment\x1
 assert.deepEqual(plain(extractLinks('https://example.com/path\nnext-line-is-not-part-of-the-link')),
   ['https://example.com/path']);
 assert.deepEqual(plain(extractLinks('no links here')), []);
+const named = '\x1b]8;id=first;https://example.net/source\x1b\\Source\x1b]8;;\x1b\\'
+  + ' and \x1b]8;;https://example.org/mirror?item=1;next=2!\x07Mirror\x1b]8;;\x07';
+assert.deepEqual(plain(extractLinks('Source and Mirror', named)),
+  ['https://example.net/source','https://example.org/mirror?item=1;next=2!']);
+assert.deepEqual(plain(extractLinks('https://example.net/source', named)),
+  ['https://example.net/source','https://example.org/mirror?item=1;next=2!']);
+assert.deepEqual(plain(extractLinks('', '\x1b]8;;javascript:alert(1)\x07bad\x1b]8;;\x07')), []);
 for (const count of [0, 1, 14, 15, 196, 197, 1000]) {
   const labels = plain(labelLinks(Array.from({length: count}, (_, i) => `https://x.test/${i}`)));
   assert.equal(new Set(labels.map(x => x.hint)).size, count);
@@ -63,6 +74,7 @@ view.init({}, cx);
 focus = {terminal:'different-terminal'};
 await cx.task;
 assert.deepEqual(plain(events.reads), [['read','--json','--lines','0','remote/t9']]);
+assert.deepEqual(plain(observers), [['python3',['/test/app/mods/link-hints/snapshot.py','remote/t9']]]);
 view.render();
 assert.equal(events.opened.length, 0);
 key(view, 's', {control:true});
@@ -94,9 +106,14 @@ assert.match(errorView.error, /Could not read/);errorView.render();
 screen = {code:0,stdout:'not-json'};
 const badJson = new View();badJson.init({},cx);await cx.task;
 assert.ok(badJson.error);badJson.render();
+screen={code:0,stdout:JSON.stringify({text:'https://example.com/'})};
+snapshotResult={code:1,stdout:''};
+const fallback = new View();fallback.init({},cx);await cx.task;
+assert.equal(fallback.links.length,1);
+assert.match(fallback.notice,/Named links unavailable/);fallback.render();
 focus = {terminal:null,shown:null,agent:null};
 const readsBefore = events.reads.length;
 const empty = new View();empty.init({},cx);empty.render();
 assert.equal(events.reads.length, readsBefore);
 assert.match(empty.error,/Focus a terminal/);
-console.log('PASS: parsing, deduplication, 1–1000 prefix-free hints, focused target capture, screen-only read, no eager opens, open/copy keys, navigation, cancel, and error states.');
+console.log('PASS: visible and OSC 8 links, deduplication, 1–1000 prefix-free hints, focus capture, read-only snapshots, no eager opens, open/copy keys, navigation, cancel, and fallback states.');

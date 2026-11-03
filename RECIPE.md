@@ -36,10 +36,18 @@ Read that terminal's program screen exactly once, with
 `hc(["read", "--json", "--lines", "0", terminal])`. While loading, say
 “Reading links…”. If there are no URLs, show that state; on read errors,
 show a short message rather than opening another terminal or retrying forever.
+In parallel, a bundled Python 3 helper captures a brief repaint with
+`hc attach --observe --history 0 <terminal>`. Read OSC 8 destinations from
+that repaint so named links work. The helper sends no input, never resizes,
+and terminates only its own observer after a quiet gap or a bounded deadline.
+If this optional read fails, retain visible URL results and show a notice.
 Agent working/blocked/idle/done states do not change the display or cause
 polling: this is a one-time snapshot when a person asks for it.
 
-Detect http, https, and www URLs. Remove surrounding prose punctuation and
+Detect http, https, and www URLs, and OSC 8 http(s) destinations terminated
+by BEL or ST. Preserve explicit OSC 8 URLs exactly, including punctuation.
+Deduplicate hidden destinations and visible URLs together.
+For visible URL text, remove surrounding prose punctuation and
 unmatched closing brackets while preserving balanced parentheses. Validate
 addresses with `URL`, normalize only for duplicate detection, and preserve
 the original URL spelling when opening. Prefix www addresses with https.
@@ -71,11 +79,14 @@ No layout file or persistent panel. This is one mod under `mods/link-hints/`:
   `h_flex`, and `div` elements. `props().overlay` identifies the overlay to
   dismiss with `closeOverlay()`.
 - `links.js`: URL extraction, deduplication, and hint assignment.
+- `snapshot.py`: bounded read-only observer capture with Python's standard
+  library, never an interactive terminal or persistent background service.
 - A root `keys.json` snippet maps global Ctrl+Shift+O to
   `mod.open:link-hints`; merge it with existing keys.
 
 Use `theme()`, `focused()`, `hc()`, `props()`, `closeOverlay()`, and
-`notify()` from `herdr`. Use the current event's `cx.open_url()` or
+`notify()`, `exec()`, and `appHome()` from `herdr`. Locate the bundled helper
+under the current app home and run it locally with Python 3. Use the current event's `cx.open_url()` or
 `cx.write_to_clipboard()` only after a person chooses a link. No shipped
 mods, third-party packages, network fetches, background polling, or art
 assets are needed by the runtime. `preview.svg` and `preview.png` are
@@ -91,8 +102,9 @@ Use a content-sized root for a popup, not a full-height flex column. The
 large `at` coordinates deliberately rely on native edge clamping; a popup
 must retain a small margin and stay on-screen after a resize.
 
-Screen reads do not expose hidden OSC 8 destinations or the app's separate
-scrollback viewport. Do not guess across actual newline boundaries. Native
+Plain screen reads do not expose hidden OSC 8 destinations; the read-only
+repaint is needed for those. Neither follows the app's separate scrollback
+viewport. Do not guess across actual newline boundaries. Native
 inline labels, terminal search, and keyboard copy mode are out of scope.
 
 Back up existing mod/key files before installing. Ctrl+Shift+O normally
@@ -107,6 +119,10 @@ app home and needs its own installation.
 - Ctrl+Shift+O opens the popup without creating a pane or dimming the app.
 - One-link, duplicate-link, no-link, failed-read, and multi-letter-hint
   states work. Every link is reachable in a list longer than six rows.
+- A named hyperlink is detected even when its destination is absent from
+  visible text. BEL/ST forms, exact URL punctuation, and duplicates work.
+- Observer failure degrades to visible links with a notice; a snapshot
+  never types, resizes, or leaves its helper process running.
 - A complete hint opens the right URL; Shift copies without opening;
   partial hints and unrelated modified keys open nothing.
 - Escape and an outside click dismiss it and return focus to the terminal.

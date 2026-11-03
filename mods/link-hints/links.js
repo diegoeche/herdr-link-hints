@@ -4,9 +4,24 @@ import { URL } from "url";
 // hint can never open a link before the user finishes a longer hint.
 export const ALPHABET = "sadfjklewcmpgh";
 
-export function extractLinks(text) {
+export function extractLinks(text, snapshot = "") {
   const links = [];
   const seen = new Set();
+  const add = url => {
+    try {
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol) || !parsed.hostname) return;
+      if (seen.has(parsed.href)) return;
+      seen.add(parsed.href);
+      links.push(url);
+    } catch (_) { /* Ignore incomplete or unsupported addresses. */ }
+  };
+  // Named links keep their destination in OSC 8, not in the visible text.
+  // Explicit destinations are exact: never strip URL punctuation from them.
+  const osc8 = /\x1b\]8;[^;\x07\x1b]*;([^\x07\x1b]*)(?:\x07|\x1b\\)/g;
+  for (const match of (snapshot + "\n" + text).matchAll(osc8)) {
+    if (match[1]) add(match[1]);
+  }
   // Screen reads are plain text, but tolerate SGR/OSC when supplied by a caller.
   const plain = text.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
     .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
@@ -21,15 +36,7 @@ export function extractLinks(text) {
       raw = raw.slice(0, -1).replace(/[.,;:!?…]+$/u, "");
     }
     const url = /^www\./i.test(raw) ? `https://${raw}` : raw;
-    try {
-      const parsed = new URL(url);
-      if (!["http:", "https:"].includes(parsed.protocol) || !parsed.hostname) continue;
-      // Preserve the exact spelling/query string when opening; normalize only
-      // for de-duplication (e.g. example.com and example.com/).
-      if (seen.has(parsed.href)) continue;
-      seen.add(parsed.href);
-      links.push(url);
-    } catch (_) { /* Ignore incomplete addresses. */ }
+    add(url);
   }
   return links;
 }
