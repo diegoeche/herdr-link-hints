@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import time
+from terminal_grid import decode_repaint
 
 
 def snapshot(terminal):
@@ -68,7 +69,13 @@ if __name__ == "__main__":
     try:
         if len(sys.argv) != 2:
             raise RuntimeError("Expected one terminal address")
-        print(json.dumps({"ansi": snapshot(sys.argv[1])}))
-    except (OSError, RuntimeError) as error:
+        result = subprocess.run(["hc","get","--json",sys.argv[1]],
+                                text=True,capture_output=True,timeout=5,check=True)
+        terminal = json.loads(result.stdout)
+        cols, rows = terminal["cols"], terminal["rows"]
+        ansi = snapshot(sys.argv[1])
+        print(json.dumps({"ansi":ansi,"cols":cols,"rows":rows,
+                          **decode_repaint(ansi,cols,rows)}))
+    except (OSError, RuntimeError, ValueError, KeyError, subprocess.SubprocessError) as error:
         print(json.dumps({"error": str(error)}))
         sys.exit(1)

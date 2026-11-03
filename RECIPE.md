@@ -1,131 +1,133 @@
 # Herdr Link Hints
 
-A compact keyboard link picker for Herdr's desktop app. Ctrl+Shift+O shows
-letter labels next to URLs from the focused terminal. It sits in the
-bottom-right corner without dimming the rest of the window.
+A keyboard link picker for Herdr's desktop app, with two configurable modes:
+inline letter badges over terminal links, or a compact bottom-right window.
+Ctrl+Shift+O opens it; F2 switches modes while open. Use the current theme.
 
-![Illustrative preview with example URLs](preview.png)
+![Illustration of window mode using example URLs](preview.png)
 
 ## What you see
 
-A popup 480 logical pixels wide, with a height fitted to its content and
-capped at 300 pixels. It sits 8 pixels inside the bottom-right window edge.
-Its root has 10 pixels of padding and 6-pixel vertical gaps.
+Use a transparent, frameless, full-window overlay with no backdrop dimming.
+In window mode, place a content-sized card 8 logical pixels inside the
+bottom-right edge. Default width is 480, capped at 95% of the viewport;
+use padding 10, gap 6, border 1, and radius 8. Show a “Links” header, typed
+prefix, count, up to six 28px rows, and a small controls footer. Truncate
+long URLs with full-address tooltips; keyboard selection stays visible.
 
-The header reads “Links”. During a multi-letter hint, the typed prefix
-appears beside it. The right edge shows the link count, or the selected
-row's position and an arrow indicator for more than six matches.
+In inline mode, put small accent-colored letter badges over each link's
+first terminal cell. A duplicate URL has the same hint at every occurrence.
+Show a small bottom-right footer with controls and the selected URL. Preserve
+the terminal text underneath; do not create panes or alter the terminal.
 
-Up to six rows appear at once. Each is 28 pixels high, with a 28-pixel hint
-column and an 8-pixel gap before the URL. Selected rows use the theme's
-`selected` color. URL text truncates, with the full URL in a hover tooltip.
+Colors come from `theme()` tokens. Hints use JetBrains Mono. No image assets
+or external libraries are needed by the runtime.
 
-A small footer says “Hint / Enter opens · Shift copies · Esc closes”. There
-is no backdrop dimming, large title, separate hint input, duplicate URL
-preview, or empty vertical filler. Colors use `theme()` tokens: `popover`,
-`foreground`, `muted`, `accent`, `input`, `selected`, `hover`, and `border`.
-Hints use JetBrains Mono, while the rest follows the app's UI font.
+## Capture and extraction
 
-## How it behaves
+Capture `focused()` before taking keyboard focus: prefer `shown`, then
+`terminal`, then `agent`. Never choose an unrelated terminal. Read the
+program screen once with `hc(["read", "--json", "--lines", "0", terminal])`.
+Show loading, empty, and error states without retry loops.
 
-Ctrl+Shift+O toggles the popup. Capture the focused terminal before the
-popup takes focus, preferring `focused().shown`, then `.terminal`, then
-`.agent`. Do not choose an arbitrary other terminal if none has focus.
+In parallel, run the bundled Python helper locally. It obtains dimensions
+with `hc get --json`, then captures the initial repaint from
+`hc attach --observe --history 0`. Keep stdin open without writing. Bound
+startup to five seconds, stop after a quiet gap or 0.4 seconds of continuous
+output, cap capture at 4 MiB, and clean up only the observer client. No input,
+resize, history requests, terminal scrolling, or persistent background work.
 
-Read that terminal's program screen exactly once, with
-`hc(["read", "--json", "--lines", "0", terminal])`. While loading, say
-“Reading links…”. If there are no URLs, show that state; on read errors,
-show a short message rather than opening another terminal or retrying forever.
-In parallel, a bundled Python 3 helper captures a brief repaint with
-`hc attach --observe --history 0 <terminal>`. Read OSC 8 destinations from
-that repaint so named links work. The helper sends no input, never resizes,
-and terminates only its own observer after a quiet gap or a bounded deadline.
-If this optional read fails, retain visible URL results and show a notice.
-Agent working/blocked/idle/done states do not change the display or cause
-polling: this is a one-time snapshot when a person asks for it.
+Extract visible http/https/www links and OSC 8 http(s) destinations terminated
+by BEL or ST. Preserve explicit hyperlink destinations exactly. Trim prose
+punctuation from visible URLs, validate with `URL`, and normalize only for
+deduplication. Assign uniform-length hints using `sadfjklewcmpgh` so no hint
+is a prefix of another. Opening and copying use the preserved URL.
 
-Detect http, https, and www URLs, and OSC 8 http(s) destinations terminated
-by BEL or ST. Preserve explicit OSC 8 URLs exactly, including punctuation.
-Deduplicate hidden destinations and visible URLs together.
-For visible URL text, remove surrounding prose punctuation and
-unmatched closing brackets while preserving balanced parentheses. Validate
-addresses with `URL`, normalize only for duplicate detection, and preserve
-the original URL spelling when opening. Prefix www addresses with https.
+Decode the repaint into a bounded cell grid, including cursor positioning,
+erase, common color/mode escapes, OSC 8 spans, and Unicode wide/combining
+characters. Extract link occurrences by row and column. Unsupported screen
+transformations mark positioning unsafe, while visible URL extraction remains
+available. Do not pretend this helper implements a full terminal emulator.
 
-Assign hints using `sadfjklewcmpgh`. Use the shortest uniform hint length
-that accommodates the list, retaining screen order. All hints must have
-equal length so none is a prefix of another.
+## Inline geometry
 
-Typing a complete hint opens its URL in the default browser. Shift on the
-last letter copies it instead. Arrow keys or Tab move the selection;
-Enter opens and Shift+Enter copies. PageUp/PageDown, Home/End, and Backspace
-work too. The selected row stays visible as the list moves. Escape, Ctrl+C,
-or the opening shortcut closes it. Clicking a row opens it; Shift+click
-copies. An outside click dismisses it.
+Read the current `layout()`, not just the saved layout JSON: sidebar sizes
+may have changed. Calculate the active terminal rectangle from the window
+viewport, layout splits, weights, gaps, padding, dividers, hidden blocks,
+and lone-pane frame. Account for terminal padding and zoom.
 
-Capture all keys while open so they do not reach a running agent. Ignore
-unrelated modified letters and held-key hint events. Never open a URL on
-loading, rendering, or partial hint entry. Close after opening/copying and
-show a short copy confirmation. No scrolling, pane creation, or program input.
+Measure the terminal font's medium-weight M advance with an invisible
+intrinsic-size text element and `on_size_change`. Use the base font size from
+`settings()`; mod styles already apply Herdr's zoom. Infer a unique row
+height compatible with the terminal row count and monitor scale, or accept
+an explicit configured height. Center the spare vertical pixels and snap
+the origin to device pixels as the terminal does. Convert window coordinates
+back through mod zoom when placing badges.
 
-## Built from
+Only use inline mode when every link has positions, terminal columns match
+the measured width, the row height is unambiguous, the active tab has one
+pane (or a zoomed pane), and the viewport/font/zoom have not changed. Fall
+back to the compact card with a notice whenever these checks fail. Do not
+place speculative badges or partially label a list with unreachable entries.
 
-No layout file or persistent panel. This is one mod under `mods/link-hints/`:
+The screen is a one-time snapshot. Neither read follows Herdr's independent
+scrollback viewport, and live output is not frozen. Document that people
+should reopen hints after text moves. Do not join actual newline fragments.
 
-- `mod.json`: `place: "none"`, with a `popup` overlay, width 480, maximum
-  height 300, and `at: {x: 1000000, y: 1000000}`. Herdr's native popup
-  clamping places this at the bottom-right edge as the window resizes.
-- `main.js`: a `View` with a keyboard focus handle and native `v_flex`,
-  `h_flex`, and `div` elements. `props().overlay` identifies the overlay to
-  dismiss with `closeOverlay()`.
-- `links.js`: URL extraction, deduplication, and hint assignment.
-- `snapshot.py`: bounded read-only observer capture with Python's standard
-  library, never an interactive terminal or persistent background service.
-- A root `keys.json` snippet maps global Ctrl+Shift+O to
-  `mod.open:link-hints`; merge it with existing keys.
+## Controls and configuration
 
-Use `theme()`, `focused()`, `hc()`, `props()`, `closeOverlay()`, and
-`notify()`, `exec()`, and `appHome()` from `herdr`. Locate the bundled helper
-under the current app home and run it locally with Python 3. Use the current event's `cx.open_url()` or
-`cx.write_to_clipboard()` only after a person chooses a link. No shipped
-mods, third-party packages, network fetches, background polling, or art
-assets are needed by the runtime. `preview.svg` and `preview.png` are
-documentation-only illustrations with example URLs.
+Capture keyboard events while open. A completed hint opens the URL; Shift
+on its final letter copies it. Up/Down and Tab select; Enter opens and
+Shift+Enter copies. Support Backspace, PageUp/PageDown, Home/End. Escape,
+Ctrl+C, Ctrl+Shift+O, or an outside click dismisses. Clicking a badge/row
+opens it; Shift+click copies. Ignore held hints and unrelated modified keys.
+Never open on render, loading, or partial input.
 
-## Watch out
+Merge the root `keys.json` snippet with existing keys. Bind global
+Ctrl+Shift+O to `mod.open:link-hints`, replacing the default pane split.
+Bind F2 only in `mod:link-hints` to `link-hints.toggle-mode`. Receive that
+command through `nextCommand()` so F2 keeps its normal behavior elsewhere.
+Do not handle it a second time in the keyboard callback.
 
-Tested with Herdr app 0.1.12 and hc 0.1.17. Read the installed app's
-`AGENTS.md` and generated type files for its actual API. Keep contexts local
-to their callbacks. Run the read in `cx.spawn`, not on the rendering path.
+Read `<app-home>/link-hints.json` on each opening. Normalize invalid fields
+and apply defaults: mode `window`; inline device scale 1, inferred row
+height, offsets 0; card width 480 and six rows. See
+`link-hints.example.json`. F2 changes this opening only, not the saved file.
 
-Use a content-sized root for a popup, not a full-height flex column. The
-large `at` coordinates deliberately rely on native edge clamping; a popup
-must retain a small margin and stay on-screen after a resize.
+## Files and APIs
 
-Plain screen reads do not expose hidden OSC 8 destinations; the read-only
-repaint is needed for those. Neither follows the app's separate scrollback
-viewport. Do not guess across actual newline boundaries. Native
-inline labels, terminal search, and keyboard copy mode are out of scope.
+- `mod.json`: `place: "none"`, overlay kind `window`, frame `none`, origin
+  `{x:0,y:0}`, and fractional width/height `1` for a transparent surface.
+- `main.js`: focused-terminal capture, async reads, keyboard/command handling,
+  config, native elements, font probe, inline badges, and window card.
+- `links.js`: URL extraction, validation, deduplication, hints, and occurrences.
+- `geometry.js`: layout bounds, grid inference, and config normalization.
+- `snapshot.py`: bounded observer process lifecycle and JSON response.
+- `terminal_grid.py`: bounded repaint-to-cell decoder.
 
-Back up existing mod/key files before installing. Ctrl+Shift+O normally
-splits a pane in this Herdr release; replacing it is intentional. More
-specific bindings can override the global key. Each profile has its own
-app home and needs its own installation.
+Use built-in `gpui-kit`, `gpui-base`, and `herdr` APIs. Obtain viewport size
+from the ambient GPUI `window`. Keep contexts local to callbacks, run reads
+in `cx.spawn`, and use `cx.open_url()`/`cx.write_to_clipboard()` only after
+selection. `props().overlay` identifies the overlay for `closeOverlay()`.
+Stop mouse-down propagation on interactive content to avoid dragging the
+full-window native overlay; clicking the transparent background dismisses it.
+
+Read the installed app's `AGENTS.md` and generated type files before changing
+APIs. Tested with Herdr app 0.1.12 and hc 0.1.17. Profiles each have their own
+app home. Whole-directory mod symlinks support relative imports; individual
+source-file symlinks outside the mod root do not.
 
 ## Done when
 
-- `npm test` passes for URL extraction and keyboard behavior.
-- `herdr-app check <app-home>/mods/link-hints` passes and status has no errors.
-- Ctrl+Shift+O opens the popup without creating a pane or dimming the app.
-- One-link, duplicate-link, no-link, failed-read, and multi-letter-hint
-  states work. Every link is reachable in a list longer than six rows.
-- A named hyperlink is detected even when its destination is absent from
-  visible text. BEL/ST forms, exact URL punctuation, and duplicates work.
-- Observer failure degrades to visible links with a notice; a snapshot
-  never types, resizes, or leaves its helper process running.
-- A complete hint opens the right URL; Shift copies without opening;
-  partial hints and unrelated modified keys open nothing.
-- Escape and an outside click dismiss it and return focus to the terminal.
-- A screenshot confirms a compact bottom-right popup with readable hints.
-- No terminal text, credentials, customer configuration, or real session
-  screenshot is included in the published package.
+- `npm test` and `herdr-app check <installed-mod>` pass; status has no errors.
+- Both modes render in the real app without dimming or creating panes.
+- Inline labels align with visible URLs and named OSC 8 links in a supported
+  single-pane layout; resized sidebars are included in the calculation.
+- Split panes, uncertain geometry, unsupported repaint edits, and unavailable
+  observer data fall back to window mode without losing visible URL access.
+- F2's mod command switches modes; next opening restores the configured mode.
+- Every link is reachable, including duplicate occurrences and long lists.
+- Partial hints and unrelated modified keys open nothing; Shift copies.
+- Escape and outside click dismiss, returning focus to the terminal.
+- No credentials, terminal text, customer paths, or real screenshots are
+  included in the published repository.

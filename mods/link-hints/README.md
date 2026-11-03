@@ -1,35 +1,43 @@
 # Link hints
 
-Local mod for Herdr app 0.1.12. Requires hc and Python 3.8+; no third-party packages.
+Herdr app 0.1.12 mod. Requires hc and Python 3.8+; no third-party packages.
 
-Ctrl+Shift+O opens a temporary overlay for the focused terminal. Type a hint
-to open its URL in the default browser. Hold Shift on the last letter to
-copy it instead. Arrow keys/Tab and Enter also work; Shift+Enter copies.
-Escape, Ctrl+C or Ctrl+Shift+O closes it. Backspace removes a hint letter.
+Ctrl+Shift+O shows links from the focused terminal. Type a hint to open it;
+Shift on the final letter copies. Arrows/Tab select, Enter opens, Shift+Enter
+copies. Escape, Ctrl+C, or Ctrl+Shift+O closes; Backspace edits a hint.
+Click/Shift+click opens/copies. F2 switches inline/window modes when the
+`mod:link-hints` binding from the project's key snippet is installed.
 
-The compact popup sits in the bottom-right corner, without dimming the
-terminal, and fits its content (up to six visible rows). Hover a truncated
-URL to read the complete address. Clicking outside dismisses it.
-The explicit far-corner position in mod.json uses Herdr's native popup
-clamping: it keeps an 8px window margin, including after window resizing.
+Create `link-hints.json` in your app home, alongside `keys.json`:
 
-Uses Foot's `sadfjklewcmpgh` hint alphabet. With more than 14 links, hints
-use multiple letters of equal length. Duplicate URLs appear once.
+```json
+{
+  "mode": "inline",
+  "inline": {"device_scale": 1, "cell_height": null, "offset_x": 0, "offset_y": 0},
+  "window": {"width": 480, "max_rows": 6}
+}
+```
 
-The mod makes one `hc read --json --lines 0` request when opened, in the
-current profile. A bundled Python helper also briefly attaches with
-`hc attach --observe --history 0` to read hidden OSC 8 link destinations.
-The observer cannot send input or resize the terminal, and exits after a
-bounded snapshot. It does not send keystrokes, scroll the terminal, create
-panes, fetch links, save terminal text, or load external code. URLs open
-only in response to a hint, Enter, or click. It follows the current theme.
+The default mode without a config file is `window`. Config is read each
+opening; F2's choice lasts until closed. Inline mode calculates badge positions
+from the live layout, font advance, and a decoded terminal repaint. It falls
+back to a compact bottom-right card if alignment is uncertain. Use your monitor
+scale for `device_scale`; leave `cell_height` inferred unless calibrating.
+Height/offset overrides use GPUI window pixels; card width uses Herdr logical
+pixels. Both modes follow the current theme without dimming the terminal.
 
-Supported links: visible http://, https:// and www. addresses, plus named
-OSC 8 http(s) hyperlinks. If the helper is unavailable, visible URLs still
-work and a notice explains that named links were not read. The read API
-provides the program's current screen, not the app's independently scrolled
-viewport. URLs broken by actual newlines are not guessed or joined.
+Uses Foot's `sadfjklewcmpgh` alphabet with equal-length hints. Duplicate URLs
+share one hint, shown at each occurrence inline. Detects visible http/https/www
+addresses and named OSC 8 web hyperlinks. Hover a badge or row for the full URL.
 
-The current mod API cannot paint hint labels into the terminal grid, so
-these labels appear in a list. Terminal search and keyboard copy/scroll
-mode are separate app features, not implemented here.
+Makes one screen read and a bounded Python snapshot per opening. The helper
+uses `hc get --json` and `hc attach --observe --history 0`; it cannot type or
+resize and cleans up its own observer. It does not fetch URLs, save terminal
+text, or load external code. Observer failure retains visible links in window
+mode. No polling, scrolling, input forwarding, or pane creation.
+
+Reads the program's current screen, not Herdr's separately scrolled viewport.
+Inline labels are a snapshot: reopen if live output moves. Split panes,
+unsupported layout/terminal transforms, and uncertain geometry use window
+mode. Actual newline fragments are not joined. See the project's README and
+RECIPE for installation, supported configuration, implementation, and tests.

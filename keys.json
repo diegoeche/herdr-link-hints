@@ -1,5 +1,8 @@
 {
   "global": {
     "ctrl-shift-o": "mod.open:link-hints"
+  },
+  "mod:link-hints": {
+    "f2": "link-hints.toggle-mode"
   }
 }

@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { URL, fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../mods/link-hints/', import.meta.url));
-const context = vm.createContext({ console });
+const context = vm.createContext({ console, window:{viewport_size:()=>({width:1920,height:1080})} });
 const events = { opened: [], copied: [], closed: [], reads: [], notices: [] };
 const observers = [];
 let snapshotResult = {code:0, stdout:JSON.stringify({ansi:'\x1b]8;;https://example.com/\x07Named link\x1b]8;;\x07'})};
@@ -22,6 +22,9 @@ const stubs = {
   'gpui-kit': { View: class {}, div: element },
   'gpui-base': { v_flex: element, h_flex: element },
   'herdr': { focused: () => focus,
+    spaces:()=>[],panes:()=>[],layout:()=>({}),settings:()=>({zoom:1,font_size:14}),
+    readTextFile:async()=>null,
+    nextCommand:()=>new Promise(()=>{}),
     hc: async args => {events.reads.push(args); return screen;},
     exec: async (command, args) => {observers.push([command,args]); return snapshotResult;},
     appHome: () => '/test/app',
@@ -42,7 +45,8 @@ async function load(name) {
 }
 const main = await load('main.js');
 await main.evaluate();
-const {extractLinks, labelLinks, ALPHABET} = modules.get('links.js').namespace;
+const {extractLinks, labelLinks, positionLinks, ALPHABET} = modules.get('links.js').namespace;
+const {normalizeConfig,terminalBounds,gridGeometry}=modules.get('geometry.js').namespace;
 const plain = value => JSON.parse(JSON.stringify(value));
 assert.deepEqual(plain(extractLinks('See [docs](https://example.com/a_(b)). www.test.com and https://example.com/a_(b)')),
   ['https://example.com/a_(b)', 'https://www.test.com']);
@@ -60,6 +64,15 @@ assert.deepEqual(plain(extractLinks('Source and Mirror', named)),
 assert.deepEqual(plain(extractLinks('https://example.net/source', named)),
   ['https://example.net/source','https://example.org/mirror?item=1;next=2!']);
 assert.deepEqual(plain(extractLinks('', '\x1b]8;;javascript:alert(1)\x07bad\x1b]8;;\x07')), []);
+const positioned=positionLinks(labelLinks(['https://example.com/','https://example.org/path!']),[
+  {url:'https://example.com',row:2,col:4,explicit:false},
+  {url:'https://example.com/.',row:7,col:1,explicit:false},
+  {url:'https://example.org/path!',row:8,col:3,explicit:true},
+  {url:'https://example.com',row:-1,col:0,explicit:false},
+]);
+assert.deepEqual(plain(positioned[0].positions.map(p=>[p.row,p.col])),[[2,4],[7,1]]);
+assert.equal(positioned[1].positions[0].url,'https://example.org/path!');
+assert.deepEqual(plain(positionLinks(labelLinks(['https://example.net/']))[0].positions),[]);
 for (const count of [0, 1, 14, 15, 196, 197, 1000]) {
   const labels = plain(labelLinks(Array.from({length: count}, (_, i) => `https://x.test/${i}`)));
   assert.equal(new Set(labels.map(x => x.hint)).size, count);
@@ -116,4 +129,28 @@ const readsBefore = events.reads.length;
 const empty = new View();empty.init({},cx);empty.render();
 assert.equal(events.reads.length, readsBefore);
 assert.match(empty.error,/Focus a terminal/);
-console.log('PASS: visible and OSC 8 links, deduplication, 1–1000 prefix-free hints, focus capture, read-only snapshots, no eager opens, open/copy keys, navigation, cancel, and fallback states.');
+const toggled=new View();toggled.init({},cx);
+assert.equal(toggled.mode,'window');toggled.command('toggle-mode',cx);assert.equal(toggled.mode,'inline');
+toggled.command('toggle-mode',cx);assert.equal(toggled.mode,'window');
+assert.equal(normalizeConfig(null).mode,'window');
+assert.equal(normalizeConfig({mode:'inline'}).mode,'inline');
+assert.equal(normalizeConfig({window:{max_rows:500}}).window.max_rows,6);
+const rootLayout={type:'row',divider:{width:1},children:[{id:'sidebar',type:'block',size:{px:268}},
+  {type:'column',children:[{type:'block',size:{px:42}},{type:'row',padding:8,gap:8,children:[
+    {type:'block',content:{tab:'active',pane:{lone:true,border:{width:1},focus:{width:1}}}},
+    {type:'block',hidden:true,size:{px:368}}]},{type:'block',size:{px:28}}]}]};
+const viewport={width:1920,height:1080};
+const rect=terminalBounds(rootLayout,viewport,1.2);
+assert.ok(Math.abs(rect.x-333.6)<0.001 && Math.abs(rect.y-61.2)<0.001);
+const input={root:rootLayout,viewport,zoom:1.2,padding:[10,10],cols:153,rows:36,cellWidth:10.08};
+const geometry=gridGeometry(input);
+assert.equal(geometry.x,346);assert.equal(geometry.y,80);assert.equal(geometry.cellHeight,26);
+assert.equal(gridGeometry({...input,singlePane:false}),null);
+assert.equal(gridGeometry({...input,cols:80}),null);
+assert.equal(gridGeometry({...input,cellWidth:undefined}),null);
+assert.equal(gridGeometry({...input,inline:{device_scale:4}}),null,'ambiguous cell height must fall back');
+assert.equal(gridGeometry({...input,inline:{device_scale:4,cell_height:26}}).cellHeight,26);
+const panelLayout=plain(rootLayout);panelLayout.children[1].children[1].children[1].hidden=false;
+assert.equal(gridGeometry({...input,root:panelLayout}),null,'old terminal dimensions must not label a resized view');
+assert.ok(gridGeometry({...input,root:panelLayout,cols:109}));
+console.log('PASS: visible and OSC 8 links, occurrences, 1–1000 prefix-free hints, focus capture, read-only snapshots, open/copy keys, navigation, modes, configuration, layout geometry, and fallbacks.');

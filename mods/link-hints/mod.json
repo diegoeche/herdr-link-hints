@@ -2,9 +2,10 @@
   "place": "none",
   "title": "Link hints",
   "overlay": {
-    "kind": "popup",
-    "at": { "x": 1000000, "y": 1000000 },
-    "width": 480,
-    "height": 300
+    "kind": "window",
+    "frame": "none",
+    "at": { "x": 0, "y": 0 },
+    "width": 1,
+    "height": 1
   }
 }

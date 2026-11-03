@@ -53,3 +53,12 @@ export function labelLinks(urls) {
     return { hint, url };
   });
 }
+
+export function positionLinks(links, placements=[]) {
+  const canonical=url=>{try{return new URL(url).href;}catch(_){return null;}};
+  return links.map(link=>({...link,positions:placements.filter(place=>{
+    const url=place.explicit?place.url:extractLinks(place.url)[0];
+    return canonical(url)===canonical(link.url) && Number.isInteger(place.row)
+      && Number.isInteger(place.col) && place.row>=0 && place.col>=0;
+  })}));
+}
