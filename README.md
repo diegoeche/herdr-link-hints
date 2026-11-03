@@ -3,15 +3,21 @@
 Open links from your keyboard in **Herdr's desktop app**, inspired by Foot's
 URL mode. Press **Ctrl+Shift+O**, then type the letter beside a link.
 
-Choose **inline** badges over terminal links or a compact **window** in the
+Choose **inline** badges beside terminal links or a compact **window** in the
 bottom-right corner. Press **F2** while hints are open to switch modes.
 Both follow your Herdr theme and leave the terminal undimmed.
 
 Development is hosted on Gitea; GitHub is the public push mirror.
 
-![Illustration of window mode](preview.png)
+**Inline mode** — badges sit just before each link, with no popup or footer.
 
-*Illustrative preview using example URLs. No real terminal content is included.*
+![Inline mode with S and A hint badges beside two terminal URLs](preview-inline.png)
+
+**Window mode** — a compact link list stays in the bottom-right corner.
+
+![Window mode with a compact bottom-right link list](preview.png)
+
+*Illustrative previews using example URLs. No real terminal content is included.*
 
 ## Requirements
 
@@ -204,9 +210,14 @@ hyperlinks using a fake `hc` executable.
 The UI harness mocks Herdr, so also inspect both modes in a running app after
 UI changes. Never automate keys on someone else's real terminal to test it.
 
-`RECIPE.md` describes how to rebuild the mod from scratch. `preview.svg` is
-the editable source for the illustrative window-mode preview; regenerate
-the PNG with `rsvg-convert preview.svg -o preview.png`.
+`RECIPE.md` describes how to rebuild the mod from scratch. The editable
+preview sources are `preview-inline.svg` and `preview.svg`. Regenerate their
+PNGs with:
+
+```sh
+rsvg-convert preview-inline.svg -o preview-inline.png
+rsvg-convert preview.svg -o preview.png
+```
 
 ## License
 

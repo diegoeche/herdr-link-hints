@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="360" viewBox="0 0 960 360" role="img" aria-labelledby="title desc">
+  <title id="title">Herdr Link Hints in inline mode</title>
+  <desc id="desc">A dark terminal with small S and A badges immediately before two example URLs. There is no popup or footer.</desc>
+  <rect width="960" height="360" rx="12" fill="#0b0b0e"/>
+  <rect x="1" y="1" width="958" height="358" rx="11" fill="none" stroke="#29272e"/>
+  <path d="M1 40H959" stroke="#29272e"/>
+  <g font-family="DejaVu Sans,sans-serif" font-size="12" fill="#98949e">
+    <text x="20" y="26">Terminal</text>
+    <text x="940" y="26" text-anchor="end">Herdr Link Hints</text>
+  </g>
+  <g font-family="DejaVu Sans Mono,monospace" font-size="14">
+    <text x="24" y="78" fill="#b8b5c0">$ npm test</text>
+    <text x="24" y="106" fill="#89b995">All checks passed.</text>
+    <text x="24" y="148" fill="#b8b5c0">Project links:</text>
+    <g fill="#7b9be8" text-decoration="underline">
+      <text x="56" y="182">https://example.com/docs</text>
+      <text x="56" y="214">https://example.org/review</text>
+    </g>
+    <text x="24" y="262" fill="#b8b5c0">$</text>
+    <rect x="41" y="247" width="8" height="18" fill="#b8b5c0"/>
+  </g>
+  <g fill="#7b9be8" stroke="#f0edf4">
+    <rect x="35" y="166" width="18" height="22" rx="3"/>
+    <rect x="35" y="198" width="18" height="22" rx="3"/>
+  </g>
+  <g font-family="DejaVu Sans Mono,monospace" font-size="12" font-weight="600" text-anchor="middle" fill="#0b0b0e">
+    <text x="44" y="181">S</text>
+    <text x="44" y="213">A</text>
+  </g>
+</svg>
