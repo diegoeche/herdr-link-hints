@@ -1,6 +1,6 @@
 {
   "name": "herdr-desktop-link-hints",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Foot-inspired keyboard link hints for Herdr's desktop app",
   "type": "module",

@@ -89,8 +89,8 @@ You can also ask your coding agent:
 | Click / Shift+click | Open / copy that link |
 
 Clicking outside also dismisses hints. Hover a badge or truncated URL to see
-the full address. Inline mode shows the keyboard selection's URL in a small
-bottom-right footer.
+the full address. Inline mode shows only badges, positioned just before the
+links with a small gap; it has no footer or loading card.
 
 Hints use Foot's `sadfjklewcmpgh` alphabet. With more than 14 links, all
 hints gain another letter, so a short hint never opens the wrong link
@@ -137,7 +137,8 @@ F2 changes only the current opening; edit the file to change the default.
 Inline positioning is experimental: the mod calculates the terminal bounds
 from the live layout, measures the current font's character advance, and
 decodes row/column positions from the observer repaint. It uses a transparent
-overlay rather than changing the terminal renderer. If dimensions disagree,
+overlay rather than changing the terminal renderer. It waits for the snapshot
+and font measurement before drawing badges, without flashing the window card. If dimensions disagree,
 row height is ambiguous, the layout is unsupported, or the terminal has
 multiple unzoomed panes, it falls back to window mode with a notice. Window
 resize or font/zoom changes while hints are open also trigger that fallback.

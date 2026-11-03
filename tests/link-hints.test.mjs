@@ -10,9 +10,15 @@ const observers = [];
 let snapshotResult = {code:0, stdout:JSON.stringify({ansi:'\x1b]8;;https://example.com/\x07Named link\x1b]8;;\x07'})};
 let focus = { terminal: 't1', shown: 'remote/t9', agent: 't2' };
 let screen = { code: 0, stdout: JSON.stringify({ text: 'https://example.com/ https://example.org/?token=a%26b#x' }) };
-const element = () => new Proxy({}, {get: (_, key) => key === 'when'
-  ? (condition, fn) => condition ? fn(element()) : element()
-  : () => element() });
+const rendered=[];
+const model={spaces:[],panes:[],layout:{},settings:{zoom:1,font_size:14}};
+const element = () => {
+  const node={};rendered.push(node);
+  const proxy=new Proxy({}, {get: (_, key) => key === 'when'
+    ? (condition, fn) => condition ? fn(proxy) : proxy
+    : (...args) => {node[key]??=[];node[key].push(args);return proxy;}});
+  return proxy;
+};
 const cx = {focus_handle: () => ({focus() {}}), stop_propagation() {}, notify() {},
   spawn(fn) { this.task = fn(this); },
   open_url(url) { events.opened.push(url); },
@@ -22,7 +28,7 @@ const stubs = {
   'gpui-kit': { View: class {}, div: element },
   'gpui-base': { v_flex: element, h_flex: element },
   'herdr': { focused: () => focus,
-    spaces:()=>[],panes:()=>[],layout:()=>({}),settings:()=>({zoom:1,font_size:14}),
+    spaces:()=>model.spaces,panes:()=>model.panes,layout:()=>model.layout,settings:()=>model.settings,
     readTextFile:async()=>null,
     nextCommand:()=>new Promise(()=>{}),
     hc: async args => {events.reads.push(args); return screen;},
@@ -153,4 +159,31 @@ assert.equal(gridGeometry({...input,inline:{device_scale:4,cell_height:26}}).cel
 const panelLayout=plain(rootLayout);panelLayout.children[1].children[1].children[1].hidden=false;
 assert.equal(gridGeometry({...input,root:panelLayout}),null,'old terminal dimensions must not label a resized view');
 assert.ok(gridGeometry({...input,root:panelLayout,cols:109}));
+model.layout=rootLayout;
+model.spaces=[{active:true,tabs:[{id:'tab',active:true}]}];
+model.panes=[{id:'pane',tab:'tab'}];
+model.settings={zoom:1.2,font_size:14,terminal_padding:[10,10]};
+const inlineView=new View();inlineView.init({},cx);
+Object.assign(inlineView,{target:{pane:'pane',tab:'tab'},mode:'inline',error:'',loading:true,
+  configReady:false,config:normalizeConfig({mode:'inline'}),
+  links:positionLinks(labelLinks(['https://example.com/']),[{url:'https://example.com/',row:0,col:0,explicit:true}]),
+  snapshot:{positioned:true,cols:153,rows:36}});
+const draw=()=>{rendered.length=0;inlineView.render();return rendered;};
+const panelVisible=()=>rendered.some(node=>node.id?.[0][0]==='link-hints-panel');
+draw();assert.equal(panelVisible(),false,'config loading must not flash the window');
+inlineView.configReady=true;
+draw();assert.equal(panelVisible(),false,'inline snapshot loading must stay transparent');
+inlineView.loading=false;
+draw();assert.equal(panelVisible(),false,'waiting for font measurement must stay transparent');
+inlineView.cellWidth=10.08;
+draw();assert.equal(panelVisible(),false,'ready inline mode must contain only badges');
+const badge=rendered.find(node=>node.id?.[0][0]==='hint-s-0-0');
+assert.ok(badge,'ready inline mode renders a badge');
+assert.ok(Math.abs(badge.left[0][0]+badge.w[0][0]+3-geometry.x/1.2)<0.001,
+  'badge ends three logical pixels before the URL');
+assert.equal(rendered.some(node=>node.child?.some(args=>typeof args[0]==='string' && args[0].includes('Inline hints'))),false,
+  'inline mode has no bottom-right footer');
+inlineView.command('toggle-mode',cx);draw();assert.equal(panelVisible(),true,'explicit window mode keeps the card');
+inlineView.command('toggle-mode',cx);inlineView.snapshot.positioned=false;
+draw();assert.equal(panelVisible(),true,'unsafe alignment still falls back to the card');
 console.log('PASS: visible and OSC 8 links, occurrences, 1–1000 prefix-free hints, focus capture, read-only snapshots, open/copy keys, navigation, modes, configuration, layout geometry, and fallbacks.');

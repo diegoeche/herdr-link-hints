@@ -16,8 +16,11 @@ prefix, count, up to six 28px rows, and a small controls footer. Truncate
 long URLs with full-address tooltips; keyboard selection stays visible.
 
 In inline mode, put small accent-colored letter badges over each link's
-first terminal cell. A duplicate URL has the same hint at every occurrence.
-Show a small bottom-right footer with controls and the selected URL. Preserve
+first terminal cell, shifted left by the badge width plus a 3px gap. Clamp
+to the window edge. A duplicate URL has the same hint at every occurrence.
+Show only badges in inline mode, with no bottom-right footer. Wait for config,
+snapshot, and font measurement before drawing anything; do not flash the
+window card while they load. Preserve
 the terminal text underneath; do not create panes or alter the terminal.
 
 Colors come from `theme()` tokens. Hints use JetBrains Mono. No image assets

@@ -18,6 +18,7 @@ export default class LinkHints extends View {
     this.error = this.terminal ? "" : "Focus a terminal, then press Ctrl+Shift+O.";
     this.notice = "";
     this.config = normalizeConfig();
+    this.configReady = !this.terminal;
     this.mode = this.config.mode;
     this.snapshot = {};
     this.handle = cx.focus_handle();
@@ -34,6 +35,8 @@ export default class LinkHints extends View {
           this.config = normalizeConfig(config ? JSON.parse(config) : {});
           if (!this.manualMode) this.mode = this.config.mode;
         } catch (_) { this.notice = "Could not read link-hints.json · using window mode"; }
+        this.configReady = true;
+        cx.notify();
         // One screen-only read per opening. History reads can send scroll
         // input to a full-screen program, so deliberately never request them.
         const [read, observe] = await Promise.allSettled([
@@ -189,6 +192,10 @@ export default class LinkHints extends View {
         const width=size.width/128;
         if(width>0 && Math.abs(width-(this.cellWidth??0))>0.001){this.cellWidth=width;cx.notify();}
       }));
+    // Inline opens directly to badges. Wait for config, the snapshot, and
+    // font measurement instead of flashing the window card between them.
+    if (!this.configReady || (this.mode === "inline" && !this.error
+      && (this.loading || !this.cellWidth))) return root;
     if (!geometry) {
       const fallback=this.mode==="inline" && !this.loading && this.links.length
         ? "Inline alignment unavailable in this view · using window mode" : "";
@@ -197,11 +204,12 @@ export default class LinkHints extends View {
     const rows=this.rows();this.at=Math.min(this.at,Math.max(0,rows.length-1));
     const font=Math.min(12,Math.max(9,geometry.cellHeight/zoom*0.5));
     for (const link of rows) for (const point of link.positions) {
-      const width=link.hint.length*font*0.65+8;
+      const width=link.hint.length*font*0.65+10;
       root=root.child(div().id(`hint-${link.hint}-${point.row}-${point.col}`).absolute()
-        .left(Math.min(viewport.width/zoom-width,(geometry.x+point.col*geometry.cellWidth)/zoom))
+        .left(Math.max(0,Math.min(viewport.width/zoom-width,
+          (geometry.x+point.col*geometry.cellWidth)/zoom-width-3)))
         .top((geometry.y+point.row*geometry.cellHeight)/zoom)
-        .px(4).h(Math.max(font+4,geometry.cellHeight/zoom-2)).rounded(3)
+        .w(width).px(4).h(Math.max(font+4,geometry.cellHeight/zoom-2)).rounded(3)
         .flex().items_center().font_family("JetBrains Mono").font_semibold().text_size(font)
         .bg(t.accent).text_color(t.accent_foreground).border(1).border_color(t.foreground)
         .tooltip(link.url).cursor_pointer()
@@ -209,10 +217,6 @@ export default class LinkHints extends View {
         .on_click((event,cx)=>{cx.stop_propagation();this.activate(link,event.modifiers.shift,cx);})
         .child(link.hint.toUpperCase()));
     }
-    return root.child(v_flex().absolute().right(8).bottom(8).w(this.config.window.width).max_w("95%")
-      .p(8).gap(4).rounded(6).border(1).border_color(t.border).bg(t.popover)
-      .text_size(10.5).text_color(t.muted).on_mouse_down("left",(_e,cx)=>cx.stop_propagation())
-      .child(div().child("Inline hints · Shift copies · F2 window · Esc closes"))
-      .child(div().truncate().text_color(t.foreground).child(rows[this.at]?.url??"")));
+    return root;
   }
 }

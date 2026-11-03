@@ -24,7 +24,9 @@ from the live layout, font advance, and a decoded terminal repaint. It falls
 back to a compact bottom-right card if alignment is uncertain. Use your monitor
 scale for `device_scale`; leave `cell_height` inferred unless calibrating.
 Height/offset overrides use GPUI window pixels; card width uses Herdr logical
-pixels. Both modes follow the current theme without dimming the terminal.
+pixels. Inline shows only badges, just before the links with a small gap,
+without a footer or loading card. Both modes follow the current theme without
+dimming the terminal.
 
 Uses Foot's `sadfjklewcmpgh` alphabet with equal-length hints. Duplicate URLs
 share one hint, shown at each occurrence inline. Detects visible http/https/www
