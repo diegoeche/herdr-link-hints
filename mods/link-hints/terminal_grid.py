@@ -153,4 +153,12 @@ def decode_repaint(text, cols, rows):
             if not cells[column][1]:
                 placements.append({"url":match[0],"row":row,"col":column,
                     "length":len(match[0]),"explicit":False})
-    return {"placements":placements,"positioned":safe}
+    lines = []
+    for cells in grid:
+        text = "".join(char for char, _ in cells)
+        columns = []
+        for column, (char, _) in enumerate(cells):
+            # JS string indices count UTF-16 units, including surrogate pairs.
+            columns.extend([column] * (len(char.encode("utf-16-le")) // 2))
+        lines.append({"text": text, "columns": columns})
+    return {"placements":placements,"positioned":safe,"lines":lines}

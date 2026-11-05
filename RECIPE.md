@@ -1,136 +1,103 @@
-# Herdr Link Hints
+# Herdr Inline Selectors
 
-A keyboard link picker for Herdr's desktop app, with two configurable modes:
-inline letter badges over terminal links, or a compact bottom-right window.
-Ctrl+Shift+O opens it; F2 switches modes while open. Use the current theme.
+A configurable native inline picker for links, explicit shell commands, image paths,
+and local extensions. The default shortcuts are Ctrl+Shift+O, Ctrl+Shift+X, and
+Ctrl+Shift+I. F2 toggles window/inline mode; F3 cycles enabled selectors.
 
-![Illustration of window mode using example URLs](preview.png)
+![Inline link selector illustration](preview-inline.png)
 
 ## What you see
 
-Use a transparent, frameless, full-window overlay with no backdrop dimming.
-In window mode, place a content-sized card 8 logical pixels inside the
-bottom-right edge. Default width is 480, capped at 95% of the viewport;
-use padding 10, gap 6, border 1, and radius 8. Show a “Links” header, typed
-prefix, count, up to six 28px rows, and a small controls footer. Truncate
-long URLs with full-address tooltips; keyboard selection stays visible.
+Use a transparent, frameless full-window overlay with themed letter badges just
+before each match. Duplicate values share a hint at every occurrence. Hints use
+Foot's sadfjklewcmpgh alphabet with a uniform width, so none prefixes another.
+There is no inline footer or loading card. Wait for config, snapshot, and font
+measurement. Fall back to a compact bottom-right card when alignment is unsafe.
+The card has a title, count/prefix, reachable paged rows and controls. Fit row
+count to viewport height; allow scrolling when the whole card exceeds it.
 
-In inline mode, put small accent-colored letter badges over each link's
-first terminal cell, shifted left by the badge width plus a 3px gap. Clamp
-to the window edge. A duplicate URL has the same hint at every occurrence.
-Show only badges in inline mode, with no bottom-right footer. Wait for config,
-snapshot, and font measurement before drawing anything; do not flash the
-window card while they load. Preserve
-the terminal text underneath; do not create panes or alter the terminal.
+## How it behaves
 
-Colors come from `theme()` tokens. Hints use JetBrains Mono. No image assets
-or external libraries are needed by the runtime.
+A completed hint, Enter or click activates; Shift copies the exact value instead.
+Arrows, Tab, paging, Home/End and Backspace navigate. Escape, Ctrl+C and the
+current selector's shortcut dismiss. Another configured shortcut switches the
+selector. F2 and F3 work directly from the focused overlay, including F2 while
+loading. Selector navigation keys stay out of the source terminal.
 
-## Capture and extraction
+Links open HTTP(S) destinations. Commands are explicit prefixed logical lines
+(default !). Activation types the selected command, with its configured bang
+prefix, into the exact source terminal without Enter. The person reviews and
+submits it in Codex/Claude, where the usual command/output/failure flow remains.
+An optional run-command adapter opens a separate Bash tab. Image paths open a configured local viewer.
+Nothing runs during extraction, rendering, loading, or partial hint input.
 
-Capture `focused()` before taking keyboard focus: prefer `shown`, then
-`terminal`, then `agent`. Never choose an unrelated terminal. Read the
-program screen once with `hc(["read", "--json", "--lines", "0", terminal])`.
-Show loading, empty, and error states without retry loops.
+Configuration lives in selectors.json beside keys.json and reloads on opening.
+Use legacy link-hints.json only if the new file is absent. Default mode is inline;
+keep existing explicit modes on migration. Merge built-in selector defaults with
+custom entries and support disabled selectors, custom regex captures, URL
+parameter templates, and separate process argv. plugins.js exports matcher and
+action maps for local extensions. See selectors.example.json and README.md for
+the concrete schema and contracts.
 
-In parallel, run the bundled Python helper locally. It obtains dimensions
-with `hc get --json`, then captures the initial repaint from
-`hc attach --observe --history 0`. Keep stdin open without writing. Bound
-startup to five seconds, stop after a quiet gap or 0.4 seconds of continuous
-output, cap capture at 4 MiB, and clean up only the observer client. No input,
-resize, history requests, terminal scrolling, or persistent background work.
+## Built from
 
-Extract visible http/https/www links and OSC 8 http(s) destinations terminated
-by BEL or ST. Preserve explicit hyperlink destinations exactly. Trim prose
-punctuation from visible URLs, validate with `URL`, and normalize only for
-deduplication. Assign uniform-length hints using `sadfjklewcmpgh` so no hint
-is a prefix of another. Opening and copying use the preserved URL.
+Canonical runtime source is mods/link-hints/. selectors.js owns config, matcher
+registry, candidate labelling/positioning, and paging. actions.js owns the action
+registry and dispatch. plugins.js supplies local extensions without engine edits.
+main.js captures focus, loads config/snapshot, renders, and handles native events.
+geometry.js measures layout bounds and infers the grid. links.js retains URL/OSC
+extraction and hint encoding. snapshot.py captures a bounded read-only observer;
+terminal_grid.py decodes physical cells and UTF-16-to-cell position mappings.
+terminal_input.py uses hc's framed attach protocol for literal UTF-8 input,
+at the current terminal dimensions, without Enter, resize frames or clipboard
+changes. Reject blocked approval dialogs, controls and multiline input. On a
+transfer failure keep the selector open and visibly show the error even in
+inline mode. Preserve the selected command for manual retry; never retry
+automatically. If a failure happens after writing, warn that the input may
+already be present.
 
-Decode the repaint into a bounded cell grid, including cursor positioning,
-erase, common color/mode escapes, OSC 8 spans, and Unicode wide/combining
-characters. Extract link occurrences by row and column. Unsupported screen
-transformations mark positioning unsafe, while visible URL extraction remains
-available. Do not pretend this helper implements a full terminal emulator.
+Capture focused().shown, then terminal, then agent before focusing the overlay.
+Read hc read --json --lines 0 once. In parallel, the Python helper obtains
+terminal dimensions and foreground directory with hc get --json, then captures
+hc attach --observe --history 0. Keep stdin open but write nothing; cap startup
+at five seconds and data at 4 MiB; stop at a quiet gap or 0.4 seconds of continuous
+output; clean up only the observer client. Do not request history or scroll apps.
 
-## Inline geometry
+Use the read API's logical text to preserve soft-wrapped values and real newlines.
+Locate complete matches against decoded physical rows for badges. Retain explicit
+OSC 8 positions. Account for wide/combining characters and JS UTF-16 indices.
+Unsupported terminal transformations disable speculative inline positioning.
 
-Read the current `layout()`, not just the saved layout JSON: sidebar sizes
-may have changed. Calculate the active terminal rectangle from the window
-viewport, layout splits, weights, gaps, padding, dividers, hidden blocks,
-and lone-pane frame. Account for terminal padding and zoom.
+Calculate bounds from live layout(), including resized nodes, hidden blocks,
+padding, dividers and pane frames. Measure the actual settings().font_family at
+medium weight with a 128-M probe. Native bounds round up; account for that bounded
+per-character error when comparing columns. Infer a unique row height compatible
+with terminal rows/device scale. Snap origins and convert through native zoom.
+Inline requires complete positioning, one pane or a zoomed pane, and unchanged
+viewport/typography. Other cases use the card with a notice.
 
-Measure the terminal font's medium-weight M advance with an invisible
-intrinsic-size text element and `on_size_change`. Use the base font size from
-`settings()`; mod styles already apply Herdr's zoom. Infer a unique row
-height compatible with the terminal row count and monitor scale, or accept
-an explicit configured height. Center the spare vertical pixels and snap
-the origin to device pixels as the terminal does. Convert window coordinates
-back through mod zoom when placing badges.
+scripts/install.py creates self-contained launchers for each configured selector.
+Imports must remain within each mod root, so copy the canonical engine as
+selector.js inside non-default launchers and generate a tiny main.js subclass
+with its selector ID. Merge configured shortcuts, refuse unrelated key/mod
+collisions, back up changed files, preserve dotfile symlinks, and refresh an
+existing mod-directory symlink to trigger reload. Generate custom selector
+launchers too. Build-only output enables native validation before installation.
 
-Only use inline mode when every link has positions, terminal columns match
-the measured width, the row height is unambiguous, the active tab has one
-pane (or a zoomed pane), and the viewport/font/zoom have not changed. Fall
-back to the compact card with a notice whenever these checks fail. Do not
-place speculative badges or partially label a list with unreachable entries.
+## Watch out
 
-The screen is a one-time snapshot. Neither read follows Herdr's independent
-scrollback viewport, and live output is not frozen. Document that people
-should reopen hints after text moves. Do not join actual newline fragments.
-
-## Controls and configuration
-
-Capture keyboard events while open. A completed hint opens the URL; Shift
-on its final letter copies it. Up/Down and Tab select; Enter opens and
-Shift+Enter copies. Support Backspace, PageUp/PageDown, Home/End. Escape,
-Ctrl+C, Ctrl+Shift+O, or an outside click dismisses. Clicking a badge/row
-opens it; Shift+click copies. Ignore held hints and unrelated modified keys.
-Never open on render, loading, or partial input.
-
-Merge the root `keys.json` snippet with existing keys. Bind global
-Ctrl+Shift+O to `mod.open:link-hints`, replacing the default pane split.
-Bind F2 only in `mod:link-hints` to `link-hints.toggle-mode`. Receive that
-command through `nextCommand()` so F2 keeps its normal behavior elsewhere.
-Do not handle it a second time in the keyboard callback.
-
-Read `<app-home>/link-hints.json` on each opening. Normalize invalid fields
-and apply defaults: mode `window`; inline device scale 1, inferred row
-height, offsets 0; card width 480 and six rows. See
-`link-hints.example.json`. F2 changes this opening only, not the saved file.
-
-## Files and APIs
-
-- `mod.json`: `place: "none"`, overlay kind `window`, frame `none`, origin
-  `{x:0,y:0}`, and fractional width/height `1` for a transparent surface.
-- `main.js`: focused-terminal capture, async reads, keyboard/command handling,
-  config, native elements, font probe, inline badges, and window card.
-- `links.js`: URL extraction, validation, deduplication, hints, and occurrences.
-- `geometry.js`: layout bounds, grid inference, and config normalization.
-- `snapshot.py`: bounded observer process lifecycle and JSON response.
-- `terminal_grid.py`: bounded repaint-to-cell decoder.
-
-Use built-in `gpui-kit`, `gpui-base`, and `herdr` APIs. Obtain viewport size
-from the ambient GPUI `window`. Keep contexts local to callbacks, run reads
-in `cx.spawn`, and use `cx.open_url()`/`cx.write_to_clipboard()` only after
-selection. `props().overlay` identifies the overlay for `closeOverlay()`.
-Stop mouse-down propagation on interactive content to avoid dragging the
-full-window native overlay; clicking the transparent background dismisses it.
-
-Read the installed app's `AGENTS.md` and generated type files before changing
-APIs. Tested with Herdr app 0.1.12 and hc 0.1.17. Profiles each have their own
-app home. Whole-directory mod symlinks support relative imports; individual
-source-file symlinks outside the mod root do not.
+Herdr's independently scrolled viewport and offscreen history are not available
+through this API. Return to the bottom for inline selection; reopen after output
+moves. Snapshots do not freeze the program. Do not join actual newline fragments.
+Built-in image viewing is local; remote retrieval needs an extension. Shell
+execution is an explicit selected action; pass the selected command as a separate
+argument to a fixed Bash script. Other process argv must never be shell-joined.
 
 ## Done when
 
-- `npm test` and `herdr-app check <installed-mod>` pass; status has no errors.
-- Both modes render in the real app without dimming or creating panes.
-- Inline labels align with visible URLs and named OSC 8 links in a supported
-  single-pane layout; resized sidebars are included in the calculation.
-- Split panes, uncertain geometry, unsupported repaint edits, and unavailable
-  observer data fall back to window mode without losing visible URL access.
-- F2's mod command switches modes; next opening restores the configured mode.
-- Every link is reachable, including duplicate occurrences and long lists.
-- Partial hints and unrelated modified keys open nothing; Shift copies.
-- Escape and outside click dismiss, returning focus to the terminal.
-- No credentials, terminal text, customer paths, or real screenshots are
-  included in the published repository.
+Automated tests cover original link controls, wrapped full values, cell mappings,
+command/image/custom actions, config errors/migration, shortcut collisions,
+long-list paging, prefix-free hints, and observer cleanup. Build and pass
+herdr-app check for every launcher. Inspect the native badge/window UI using a
+disposable test terminal; never automate keys on someone's real terminal.
+QA.md defines the subsequent manual QA and lists the remaining host limitations.

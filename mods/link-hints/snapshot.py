@@ -75,6 +75,7 @@ if __name__ == "__main__":
         cols, rows = terminal["cols"], terminal["rows"]
         ansi = snapshot(sys.argv[1])
         print(json.dumps({"ansi":ansi,"cols":cols,"rows":rows,
+                          "cwd":(terminal.get("foreground") or {}).get("cwd") or terminal.get("cwd"),
                           **decode_repaint(ansi,cols,rows)}))
     except (OSError, RuntimeError, ValueError, KeyError, subprocess.SubprocessError) as error:
         print(json.dumps({"error": str(error)}))

@@ -1,224 +1,183 @@
-# Herdr Link Hints
+# Herdr Inline Selectors
 
-Open links from your keyboard in **Herdr's desktop app**, inspired by Foot's
-URL mode. Press **Ctrl+Shift+O**, then type the letter beside a link.
+Foot-style inline selectors for **links, shell commands, image paths, and local extensions** in Herdr's desktop app. Inline letter badges are the default; F2 switches to a compact window. F3 cycles enabled selectors without rereading the terminal.
 
-Choose **inline** badges beside terminal links or a compact **window** in the
-bottom-right corner. Press **F2** while hints are open to switch modes.
-Both follow your Herdr theme and leave the terminal undimmed.
+| Shortcut | Select | Action |
+| --- | --- | --- |
+| Ctrl+Shift+O | HTTP(S)/www links, including named hyperlinks | Open in the browser |
+| Ctrl+Shift+X | Lines beginning with `!`, such as `!git status` | Type `!command` into the same terminal input |
+| Ctrl+Shift+I | Image paths, including quoted paths with spaces | Open the configured viewer |
 
-Development is hosted on Gitea; GitHub is the public push mirror.
+Type a badge to activate it. Shift on its last letter copies the value instead. Arrows/Tab select; Enter activates; Shift+Enter copies. Escape or an outside click closes the selector. The selector's own shortcut closes it; another selector shortcut switches actions. Duplicate values share a hint. More than 14 values receive equal-length, multi-letter hints.
 
-**Inline mode** — badges sit just before each link, with no popup or footer.
+Selecting a command types it, including the leading `!`, into the exact source Codex/Claude terminal. Review it and press Enter yourself; the selector never submits it. Existing draft text is retained. The assistant's normal command flow displays output, failures and any approval requests in the same conversation. Image viewing defaults to `xdg-open`; replace it with your preferred viewer in configuration.
 
-![Inline mode with S and A hint badges beside two terminal URLs](preview-inline.png)
+If input transfer fails, the selector stays open with a visible error and the same command selected. It does not retry automatically. If the connection fails after writing, check the source prompt before retrying to avoid duplicate text. A warning printed by a command alone does not establish that it failed; the assistant's command result determines that.
 
-**Window mode** — a compact link list stays in the bottom-right corner.
+![Inline mode with letter badges beside terminal URLs](preview-inline.png)
 
-![Window mode with a compact bottom-right link list](preview.png)
+![Compact window mode](preview.png)
 
-*Illustrative previews using example URLs. No real terminal content is included.*
-
-## Requirements
-
-- [Herdr desktop app](https://github.com/herdrdev/herdr-app), tested on **0.1.12**.
-- `hc` (herdr-core), available to Herdr. Tested on **0.1.17**.
-- Python 3.8+ for the bundled read-only snapshot helper.
-- A default browser for opening links.
-
-This is a desktop **mod**, not a plugin for the older Herdr TUI. No packages
-or additional services are required at runtime.
+Development is hosted on Gitea; GitHub is the public push mirror. The illustrated previews show the original link selector; the same badge interface serves the other actions.
 
 ## Install
 
-Clone this repository and review `RECIPE.md` and the source files in
-`mods/link-hints/` before installing. Mods run trusted JavaScript.
+Requires Herdr desktop 0.1.12, hc 0.1.17, and Python 3.8+. The optional separate-tab runner requires Bash. No packages or services are installed by this project. Review the source first: mods, configured processes, and local plugins run trusted code.
 
-1. Find your app folder: `$HERDR_APP_HOME` if set, otherwise
-   `~/.config/herdr-app`. Each independently configured profile has its own
-   app folder.
-2. Copy `mods/link-hints/` into that folder's `mods/` directory. If a
-   `link-hints` folder already exists, back it up and compare it first.
-3. Back up the app folder's `keys.json`. Merge these bindings into its
-   existing sections, replacing the old Ctrl+Shift+O binding:
+```sh
+python3 scripts/install.py --app-home ~/.config/herdr-app
+```
 
-   ```json
-   {
-     "global": {
-       "ctrl-shift-o": "mod.open:link-hints"
-     },
-     "mod:link-hints": {
-       "f2": "link-hints.toggle-mode"
-     }
-   }
-   ```
+The installer builds self-contained launcher mods, merges shortcuts into existing keys.json, and creates selectors.json. Existing changed files are backed up under `selector-backups/`. It preserves existing dotfile symlinks. It refuses to overwrite an unrelated launcher mod or replace an existing shortcut without an explicit replacement option.
 
-   `keys.json` in this repository is a snippet, **not a replacement for your
-   entire key file**. In Herdr 0.1.12, Ctrl+Shift+O normally splits a pane;
-   this intentionally replaces that shortcut. More specific `terminal` or
-   `layout:*` bindings for the same key take precedence; update those too
-   if needed. F2 keeps its normal behavior outside this mod.
-4. Optionally copy `link-hints.example.json` to `<app-folder>/link-hints.json`
-   and choose your preferred mode, as described below.
-5. Validate the installed mod, replacing the path for a custom profile:
+Herdr normally uses Ctrl+Shift+O to split a pane and Ctrl+Shift+X to close one. To deliberately replace those bindings:
 
-   ```sh
-   herdr-app check ~/.config/herdr-app/mods/link-hints
-   herdr-app status
-   ```
+```sh
+python3 scripts/install.py --app-home ~/.config/herdr-app \
+  --replace-key ctrl-shift-o --replace-key ctrl-shift-x
+```
 
-Herdr reloads ordinary mod files automatically. If the whole mod directory
-is a symlink, edits inside it may require refreshing that link or reopening
-the app window. Focus a terminal and press Ctrl+Shift+O. Repeat installation
-for any other app profiles you use.
+Check more specific `terminal` or `layout:*` key sections if they override a global shortcut. Install separately into each independently configured app profile. Use `$HERDR_APP_HOME` when it identifies your intended profile.
 
-You can also ask your coding agent:
+```sh
+herdr-app check ~/.config/herdr-app/mods/link-hints
+herdr-app check ~/.config/herdr-app/mods/execute-hints
+herdr-app check ~/.config/herdr-app/mods/image-hints
+herdr-app status
+```
 
-> Read this repository's RECIPE.md and source, then install the link-hints
-> mod into my Herdr desktop app. Merge its key snippet into my existing
-> keys.json, replacing Ctrl+Shift+O's pane split binding. Back up changed
-> files and run herdr-app check afterward.
-
-## Controls
-
-| Key | Action |
-| --- | --- |
-| Ctrl+Shift+O | Open or close link hints |
-| F2 | Switch inline / window mode while open |
-| Hint letters | Open that link immediately |
-| Shift on the final hint letter | Copy that link instead |
-| Up / Down, Tab / Shift+Tab | Select a link |
-| Enter / Shift+Enter | Open / copy the selection |
-| PageUp / PageDown, Home / End | Move through longer lists |
-| Backspace | Remove one hint letter |
-| Escape / Ctrl+C | Close |
-| Click / Shift+click | Open / copy that link |
-
-Clicking outside also dismisses hints. Hover a badge or truncated URL to see
-the full address. Inline mode shows only badges, positioned just before the
-links with a small gap; it has no footer or loading card.
-
-Hints use Foot's `sadfjklewcmpgh` alphabet. With more than 14 links, all
-hints gain another letter, so a short hint never opens the wrong link
-while you type a longer one. Duplicate URLs share a hint; inline mode shows
-it at each occurrence.
+The native runtime requires imports to stay inside each mod directory. The installer copies one canonical engine into the launchers; edit `mods/link-hints/` in this source project and rebuild to update them together. Build without installing with `python3 scripts/install.py --build-dir /tmp/herdr-selectors`.
 
 ## Configuration
 
-Create `link-hints.json` in your app folder, alongside `keys.json`:
+Edit `<app-home>/selectors.json`. The full defaults are in [selectors.example.json](selectors.example.json):
 
 ```json
 {
   "mode": "inline",
-  "inline": {
-    "device_scale": 1,
-    "cell_height": null,
-    "offset_x": 0,
-    "offset_y": 0
-  },
-  "window": {
-    "width": 480,
-    "max_rows": 6
+  "default_selector": "links",
+  "selectors": {
+    "links": {
+      "title": "Links",
+      "shortcut": "ctrl-shift-o",
+      "match": {"type": "url"},
+      "action": {"type": "open-url"}
+    },
+    "execute": {
+      "title": "Commands",
+      "shortcut": "ctrl-shift-x",
+      "match": {"type": "prefix", "prefix": "!"},
+      "action": {"type": "type-command", "prefix": "!"}
+    },
+    "images": {
+      "title": "Images",
+      "shortcut": "ctrl-shift-i",
+      "match": {"type": "image-path"},
+      "action": {"type": "open-file", "argv": ["xdg-open", "{value}"]}
+    }
   }
 }
 ```
 
-Missing settings use these defaults, except that the default `mode` is
-`"window"` for compatibility. Configuration is read each time hints open.
-F2 changes only the current opening; edit the file to change the default.
+Built-in selector settings merge with defaults. Set a selector to `false` or set its `enabled` field to `false` to disable it. Settings reload on each opening. F2 and F3 choices last for that opening. The legacy `link-hints.json` is read only when selectors.json is absent; installation migrates its mode and calibration.
 
-- `mode`: `"inline"` or `"window"`.
-- `inline.device_scale`: your monitor's scale factor, default `1`. On a
-  scaled monitor, set this to the scale reported by your desktop.
-- `inline.cell_height`: optional explicit terminal row height in GPUI
-  window pixels. Leave `null` to infer it from the current row count.
-- `inline.offset_x`, `inline.offset_y`: small positioning corrections in
-  GPUI window pixels, default `0`. These are useful for calibration, not
-  for following scrolling output.
-- `window.width`: card width in Herdr logical pixels, default `480`, allowed
-  range `240–1000`; it is also capped to fit the window.
-- `window.max_rows`: visible list rows, default `6`, allowed range `1–12`.
-  Keyboard navigation reaches the remaining links.
+After changing shortcuts or adding selectors, rerun the installer. It generates launchers such as `selector-tickets` and updates the matching key bindings. Native keys.json remains the actual shortcut map.
 
-Inline positioning is experimental: the mod calculates the terminal bounds
-from the live layout, measures the current font's character advance, and
-decodes row/column positions from the observer repaint. It uses a transparent
-overlay rather than changing the terminal renderer. It waits for the snapshot
-and font measurement before drawing badges, without flashing the window card. If dimensions disagree,
-row height is ambiguous, the layout is unsupported, or the terminal has
-multiple unzoomed panes, it falls back to window mode with a notice. Window
-resize or font/zoom changes while hints are open also trigger that fallback.
+Geometry settings retain their previous names:
 
-## Scope and limitations
+```json
+{
+  "inline": {"device_scale": 1, "cell_height": null, "offset_x": 0, "offset_y": 0},
+  "window": {"width": 480, "max_rows": 6}
+}
+```
 
-- Detects visible `http://`, `https://`, and `www.` addresses.
-- Detects named OSC 8 web hyperlinks, such as “GitHub” with a hidden URL.
-- Reads the focused terminal's **current program screen** once when opened.
-  It does not read the app's independently scrolled viewport or its history.
-- Inline badges use that snapshot. Live output is not frozen or tracked;
-  close and reopen hints if the terminal text moves.
-- URLs broken by actual newlines are not joined or guessed.
-- Unsupported terminal editing sequences disable inline positioning; the
-  bounded decoder is not a complete terminal emulator.
-- Terminal search, keyboard selection, and copy mode are separate features.
+Use your monitor scale for device_scale. Leave cell_height null to infer it; offsets are small calibration corrections in GPUI window pixels. Window width is in Herdr logical pixels. Long lists page around keyboard selection, and the number of visible rows shrinks to fit the window. The whole card can scroll when space is especially limited.
 
-## Data access
+## Matchers and actions
 
-The mod calls `hc read --json --lines 0 <focused-terminal>` through Herdr's
-`hc()` API for visible URLs. Its bundled Python helper reads dimensions with
-`hc get --json <focused-terminal>`, then briefly runs
-`hc attach --observe --history 0 <focused-terminal>` to capture a repaint,
-including hidden OSC 8 destinations and cursor positions. The observer cannot
-send input or resize the terminal. It closes after a quiet gap, with a
-five-second startup limit and bounded output capture, and cleans up only its
-own client. Reads use the current profile and support qualified remote
-terminal addresses. If Python or the observer is unavailable, visible URLs
-still work in window mode, with a notice that named links could not be read.
+| Matcher | Settings | Values |
+| --- | --- | --- |
+| `url` | None | Web URLs and named OSC 8 destinations |
+| `prefix` | `prefix`, default `!` | The rest of a logical line after its marker; optional leading whitespace or prompt |
+| `image-path` | None | Absolute, relative, home-relative, or file:// image paths; quotes permit spaces |
+| `regex` | `pattern`, optional `flags`, `capture` (default 1; 0 is the whole match) | A selected capture from each match |
 
-Terminal text stays in memory while hints are open. The mod does not fetch
-URLs, record terminal text, use telemetry, or store credentials. It opens the
-selected URL with Herdr's system-browser API, or writes it to the clipboard
-when explicitly requested. Its source has no external imports beyond Herdr's
-built-in modules and Python's standard library.
+| Action | Settings | Behavior |
+| --- | --- | --- |
+| `open-url` | Optional `template` | Open an HTTP(S) destination |
+| `type-command` | Optional `prefix`, default `!` | Type into the captured source terminal without Enter |
+| `run-command` | None | Run the value in a separate terminal tab using Bash |
+| `open-file` | Optional `argv` | Resolve a local path and open a viewer |
+| `process` | `argv`, optional `terminal` | Run a configured program directly, or in a new terminal tab |
 
-## Update or remove
+In templates and argv elements, `{value}` inserts the exact selected value and `{encoded}` inserts its URL-encoded form. Process arguments stay separate; shell syntax in a selected value is interpreted only by the explicit run-command action.
 
-For updates, compare this repository's `mods/link-hints/` with your installed
-copy, back up any local edits, copy the changed files, and run
-`herdr-app check` again. Do not overwrite unrelated settings. Users upgrading
-from 0.1.x should also merge the new `mod:link-hints` F2 binding.
+The type-command helper uses the [documented hc attach protocol](https://github.com/herdrdev/herdr-core/blob/master/schema/README.md#attach-streams) to send exact UTF-8 text at the terminal's current dimensions. It sends no Enter or resize frame and changes no clipboard content. It refuses blocked approval dialogs and control characters. The run-command action remains available if you deliberately want a separate shell tab instead.
 
-To remove it, dismiss hints, remove the `mod.open:link-hints` binding and
-`mod:link-hints` section from your app's `keys.json`, and remove that app
-folder's `mods/link-hints/` directory and optional `link-hints.json` file.
-Restore your previous binding if wanted. Repeat for other installed profiles.
+For example, select ticket references and open your tracker:
 
-## Development
+```json
+{
+  "selectors": {
+    "tickets": {
+      "title": "Tickets",
+      "shortcut": "ctrl-shift-j",
+      "match": {"type": "regex", "pattern": "PROJ-([0-9]+)", "capture": 1},
+      "action": {"type": "open-url", "template": "https://tracker.example/ticket/{encoded}"}
+    }
+  }
+}
+```
 
-Requires Node.js 22 or newer for the tests; no npm dependencies:
+## Local plugins
+
+For mechanisms beyond configuration, edit `mods/link-hints/plugins.js` in this source project. Export matcher functions and action functions by name, then reference those names from selectors.json. Reinstall after editing plugins. The installer also copies additional local .js modules imported by plugins.js.
+
+```js
+export const matchers = {
+  issue(text) {
+    return [...text.matchAll(/ISSUE-(\d+)/g)].map(m => ({
+      value: m[1], match: m[0], label: m[0]
+    }));
+  }
+};
+
+export const actions = {
+  issue(value, options, context) {
+    context.cx.open_url(`https://tracker.example/${encodeURIComponent(value)}`);
+  }
+};
+```
+
+A matcher receives `(text, options)` and returns `{value, match?, label?}` objects. `value` is passed to the action; `match` is the exact terminal text to locate for the badge; `label` is optional window text. An action receives `(value, options, context)` and may return a promise. Context supplies `cx`, `run`, `exec`, `home`, `machine`, and the captured `target` (including source directory and space). Async actions run in a native task context.
+
+Matchers never perform actions during loading or rendering. Plugins can replace a built-in name deliberately. There is no downloaded plugin registry or dynamic remote code loader.
+
+## Overflow and current limits
+
+Soft-wrapped URLs and commands retain their complete values: hc's logical screen text supplies the value, and the decoded repaint supplies physical badge coordinates. Actual newlines are preserved and never joined speculatively. All list items remain reachable when they exceed the visible rows.
+
+**Scrollback remains a host API limitation.** This mod reads the program's current screen, not Herdr's independently scrolled viewport or offscreen history. Return to the bottom before opening inline selectors. Reopen after output moves; snapshots do not freeze the program.
+
+Inline mode requires reliable positioning, a supported layout, and one visible terminal pane or a zoomed pane. Ambiguous geometry, unsupported repaint edits, window resizing, or font changes fall back to the compact window with a notice. Native font-bound rounding is accounted for. The built-in image viewer handles local files; remote image retrieval requires a custom action.
+
+## Development and QA
+
+Node.js 22+ is required for tests; there are no npm dependencies:
 
 ```sh
 npm test
-herdr-app check "$PWD/mods/link-hints"
+python3 scripts/install.py --build-dir /tmp/herdr-selectors
+herdr-app check /tmp/herdr-selectors/mods/link-hints
+herdr-app check /tmp/herdr-selectors/mods/execute-hints
+herdr-app check /tmp/herdr-selectors/mods/image-hints
 ```
 
-Tests cover URL extraction, duplicate handling, hint uniqueness, keyboard
-open/copy/navigation, focus capture, cancellation, mode switching, config
-validation, layout geometry, and fallback conditions. Python tests verify
-read-only observer flags, client cleanup, repaint decoding, and positioned
-hyperlinks using a fake `hc` executable.
-The UI harness mocks Herdr, so also inspect both modes in a running app after
-UI changes. Never automate keys on someone else's real terminal to test it.
+Tests cover extraction, complete wrapped values, cell positions, prefix-free hints, action dispatch, source-directory capture, shell argument handling, image paths, custom regexes, overflow paging, config migration, shortcut collisions, observer cleanup, and the original link controls. Native checks load each launcher once; manual QA is separate. See [QA.md](QA.md) for the checklist and [RECIPE.md](RECIPE.md) for the implementation brief.
 
-`RECIPE.md` describes how to rebuild the mod from scratch. The editable
-preview sources are `preview-inline.svg` and `preview.svg`. Regenerate their
-PNGs with:
-
-```sh
-rsvg-convert preview-inline.svg -o preview-inline.png
-rsvg-convert preview.svg -o preview.png
-```
+No terminal text is saved, uploaded, or fetched by extraction. The observer cannot type or resize. Browser, command, and viewer actions happen only when explicitly selected. Never automate test keys on another person's real terminal.
 
 ## License
 
-[MIT](LICENSE). Inspired by Foot's interaction; no Foot source is included.
+MIT. Inspired by Foot's interaction; no Foot source is included.

@@ -1,8 +1,8 @@
 {
   "name": "herdr-desktop-link-hints",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
-  "description": "Foot-inspired keyboard link hints for Herdr's desktop app",
+  "description": "Configurable inline selectors for links, commands, images, and local plugins in Herdr",
   "type": "module",
   "license": "MIT",
   "engines": { "node": ">=22" },

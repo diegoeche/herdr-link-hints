@@ -68,13 +68,18 @@ export function terminalBounds(root, viewport, zoom) {
   return found.length===1?found[0]:null;
 }
 
-export function gridGeometry({root,viewport,zoom,padding,cols,rows,cellWidth,inline={},singlePane=true}) {
+export function gridGeometry({root,viewport,zoom,padding,cols,rows,cellWidth,cellWidthError=0,inline={},singlePane=true}) {
   if (!singlePane || !cellWidth || !cols || !rows) return null;
   const rect=terminalBounds(root,viewport,zoom);
   if (!rect) return null;
   const [px,py]=axes(padding);
   const available=inset(rect,px*zoom,py*zoom);
-  if (Math.floor((available.width+0.001)/cellWidth)!==cols) return null;
+  // Native text bounds round the entire font probe up to a pixel. Its
+  // per-character advance is therefore an upper bound, not an exact metric.
+  const minCellWidth=Math.max(0.001,cellWidth-cellWidthError);
+  if (Math.floor((available.width+0.001)/cellWidth)>cols
+    || Math.floor((available.width+0.001)/minCellWidth)<cols) return null;
+  cellWidth=Math.min(cellWidth,available.width/cols);
   const scale=inline.device_scale??1;
   let cellHeight=inline.cell_height;
   if (!cellHeight) {

@@ -58,6 +58,15 @@ else:
     def test_unsupported_screen_edit_disables_inline_alignment(self):
         self.assertFalse(decode_repaint('\x1b[2L',80,24)['positioned'])
 
+    def test_grid_lines_preserve_wrapped_rows_and_utf16_cell_mapping(self):
+        data = decode_repaint('https://example.com/long/path', 20, 4)
+        self.assertEqual(''.join(line['text'] for line in data['lines']).rstrip(),
+                         'https://example.com/long/path')
+        data = decode_repaint('中😀https://example.com/', 40, 2)
+        line = data['lines'][0]
+        offset = len('中😀'.encode('utf-16-le')) // 2
+        self.assertEqual(line['columns'][offset], 4)
+
     def test_core_reset_tabs_colors_and_cursor_protocols_are_supported(self):
         ansi='\x1b[!p\x1b[?1049l\x1b[=0;1u\x1b[3g\x1b[9G\x1bH\x1b[1;1H\x1b[38:2:1:2:3mhello'
         self.assertTrue(decode_repaint(ansi,80,24)['positioned'])

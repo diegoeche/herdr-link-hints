@@ -1,8 +1,19 @@
 {
   "global": {
-    "ctrl-shift-o": "mod.open:link-hints"
+    "ctrl-shift-o": "mod.open:link-hints",
+    "ctrl-shift-x": "mod.open:execute-hints",
+    "ctrl-shift-i": "mod.open:image-hints"
   },
   "mod:link-hints": {
-    "f2": "link-hints.toggle-mode"
+    "f2": "link-hints.toggle-mode",
+    "f3": "link-hints.next-selector"
+  },
+  "mod:execute-hints": {
+    "f2": "execute-hints.toggle-mode",
+    "f3": "execute-hints.next-selector"
+  },
+  "mod:image-hints": {
+    "f2": "image-hints.toggle-mode",
+    "f3": "image-hints.next-selector"
   }
 }

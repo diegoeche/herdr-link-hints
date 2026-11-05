@@ -1,8 +1,12 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { focused, spaces, panes, layout, settings, hc, exec, appHome, readTextFile, nextCommand, props, closeOverlay, theme, notify } from "herdr";
-import { ALPHABET, extractLinks, labelLinks, positionLinks } from "./links.js";
-import { gridGeometry, normalizeConfig } from "./geometry.js";
+import { focused, spaces, panes, layout, settings, hc, exec, run, home, appHome, readTextFile, nextCommand, props, closeOverlay, theme, notify } from "herdr";
+import { ALPHABET } from "./links.js";
+import { gridGeometry } from "./geometry.js";
+import { candidates, selectorConfig, pageRows } from "./selectors.js";
+import { performAction } from "./actions.js";
+
+const FONT_PROBE_LENGTH = 128;
 
 export default class LinkHints extends View {
   init(_props, cx) {
@@ -10,14 +14,17 @@ export default class LinkHints extends View {
     // giving the overlay keyboard focus. Never fall back to another pane.
     const current = focused();
     this.target = current;
+    this.requestedSelector = _props?.selector;
+    this.selectorId = this.requestedSelector ?? "links";
     this.terminal = current?.shown ?? current?.terminal ?? current?.agent;
     this.links = [];
     this.prefix = "";
     this.at = 0;
     this.loading = Boolean(this.terminal);
-    this.error = this.terminal ? "" : "Focus a terminal, then press Ctrl+Shift+O.";
+    this.error = this.terminal ? "" : "Focus a terminal, then open a selector.";
     this.notice = "";
-    this.config = normalizeConfig();
+    this.config = selectorConfig();
+    this.selector = this.config.selectors[this.selectorId];
     this.configReady = !this.terminal;
     this.mode = this.config.mode;
     this.snapshot = {};
@@ -31,10 +38,14 @@ export default class LinkHints extends View {
     cx.spawn(async (cx) => {
       try {
         try {
-          const config = await readTextFile(appHome() + "/link-hints.json");
-          this.config = normalizeConfig(config ? JSON.parse(config) : {});
+          const config = await readTextFile(appHome() + "/selectors.json")
+            ?? await readTextFile(appHome() + "/link-hints.json");
+          this.config = selectorConfig(config ? JSON.parse(config) : {});
           if (!this.manualMode) this.mode = this.config.mode;
-        } catch (_) { this.notice = "Could not read link-hints.json · using window mode"; }
+        } catch (error) { throw new Error("Could not read selector configuration: " + error.message); }
+        this.selectorId = this.requestedSelector ?? this.config.default_selector;
+        this.selector = this.config.selectors[this.selectorId];
+        if (!this.selector) throw new Error(`Selector ${this.selectorId} is disabled or missing.`);
         this.configReady = true;
         cx.notify();
         // One screen-only read per opening. History reads can send scroll
@@ -53,10 +64,12 @@ export default class LinkHints extends View {
           try { this.snapshot = JSON.parse(observe.value.stdout); ansi = this.snapshot.ansi ?? ""; } catch (_) {}
         }
         if (!ansi) this.notice = "Named links unavailable · check Python 3 and hc";
-        this.links = positionLinks(labelLinks(extractLinks(screen.text, ansi)), this.snapshot.placements);
+        this.screenText=screen.text;
+        this.links = candidates(this.selector,screen.text,this.snapshot);
       } catch (error) {
         this.error = error?.message ?? "Could not read this terminal.";
       }
+      this.configReady = true;
       this.loading = false;
       cx.notify();
     });
@@ -71,24 +84,45 @@ export default class LinkHints extends View {
   }
 
   activate(link, copy, cx) {
-    if (!link) return;
-    try {
-      if (copy) cx.write_to_clipboard(link.url);
-      else cx.open_url(link.url);
-      this.dismiss();
-      if (copy) notify({ title: "Link copied", body: "URL copied to the clipboard." });
-    } catch (_) {
-      this.error = copy ? "Could not copy the link." : "Could not open the link in your browser.";
-      cx.notify();
+    if (!link || this.activating) return;
+    const value=link.value??link.url;
+    if (copy) {
+      try {
+        cx.write_to_clipboard(value);
+        notify({title:"Copied",body:"Selection copied to the clipboard."});
+        this.dismiss();
+      } catch(error) {this.error=error.message;cx.notify();}
+      return;
     }
+    this.activating=true;
+    cx.spawn(async(cx)=>{
+      try {
+        const space=spaces().find(s=>s.id===this.target?.space);
+        const machine=this.terminal?.includes("/")?this.terminal.split("/")[0]:space?.machine;
+        await performAction(this.selector,value,{cx,exec,run,home,appHome,machine,
+          target:{...this.target,terminal:this.terminal,cwd:this.snapshot.cwd??this.target?.cwd}});
+        this.dismiss();
+      } catch(error) {
+        this.error=error?.message??"Could not perform this action.";
+        this.prefix="";
+        this.at=Math.max(0,this.links.indexOf(link));
+        cx.notify();
+      }
+      finally {this.activating=false;}
+    });
   }
 
   key(event, cx) {
     // Every key stays here while the hints are open; no text reaches an agent.
     cx.stop_propagation();
     const chord = event.keystroke.toLowerCase();
-    if (event.key === "escape" || chord === "ctrl-c" || chord === "ctrl-shift-o") return this.dismiss();
-    if (event.is_held || this.loading) return;
+    if (event.key === "escape" || chord === "ctrl-c" || chord === this.selector?.shortcut) return this.dismiss();
+    const requested=Object.entries(this.config.selectors).find(([,entry])=>entry.shortcut===chord);
+    if(requested) return this.selectSelector(requested[0],cx);
+    if (event.is_held) return;
+    if (event.key === "f2") return this.toggleMode(cx);
+    if (event.key === "f3") return this.nextSelector(cx);
+    if (this.loading) return;
     const m = event.modifiers;
     if (m.control || m.alt || m.platform || m.function) return;
     if (event.key === "backspace") {
@@ -125,23 +159,41 @@ export default class LinkHints extends View {
 
   command(command,cx) {
     if (command === "toggle-mode") this.toggleMode(cx);
+    if (command === "next-selector") this.nextSelector(cx);
+  }
+
+  nextSelector(cx) {
+    if(this.loading) return;
+    const ids=Object.keys(this.config.selectors);
+    if(!ids.length) return;
+    this.selectSelector(ids[(ids.indexOf(this.selectorId)+1)%ids.length],cx);
+  }
+
+  selectSelector(id,cx) {
+    if(this.loading || !this.config.selectors[id]) return;
+    this.selectorId=id;
+    this.selector=this.config.selectors[this.selectorId];
+    this.prefix="";this.at=0;this.error="";
+    try {this.links=candidates(this.selector,this.screenText??"",this.snapshot);}
+    catch(error) {this.links=[];this.error=error.message;}
+    cx.notify();
   }
 
   panel(t, fallback) {
     const rows = this.rows();
     this.at = Math.min(this.at, Math.max(0, rows.length - 1));
     // Keep the keyboard selection on screen, even with hundreds of links.
-    const count = this.config.window.max_rows;
-    const start = Math.max(0, Math.min(this.at - Math.floor(count/2), rows.length - count));
-    const visible = rows.slice(start, start + count);
-    const message = this.loading ? "Reading links…" : this.error
-      || (!this.links.length ? "No web links found on the current terminal screen." : "");
+    const height=window.viewport_size().height/(Number(settings().zoom)||1);
+    const {count,start,visible}=pageRows(rows,this.at,this.config.window.max_rows,height);
+    const message = this.loading ? "Reading selections…" : this.error
+      || (!this.links.length ? "No matches found on the current terminal screen." : "");
     return v_flex().id("link-hints-panel")
-      .w(this.config.window.width).max_w("95%").h_auto().p(10).gap(6).rounded(8)
+      .w(this.config.window.width).max_w("95%").max_h(Math.max(28,height-16))
+      .overflow_y_scrollbar().h_auto().p(10).gap(6).rounded(8)
       .border(1).border_color(t.border).bg(t.popover).text_color(t.foreground).text_size(12)
       .on_mouse_down("left", (_e,cx)=>cx.stop_propagation())
       .child(h_flex().items_center().gap(8)
-        .child(div().font_semibold().child("Links"))
+        .child(div().font_semibold().child(this.selector?.title??"Selectors"))
         .when(Boolean(this.prefix), el => el.child(div().px(5).rounded(3).bg(t.input)
           .text_color(t.accent).font_family("JetBrains Mono").child(this.prefix.toUpperCase())))
         .child(div().flex_1())
@@ -156,17 +208,18 @@ export default class LinkHints extends View {
           .on_click((event, cx) => { cx.stop_propagation(); this.activate(link, event.modifiers.shift, cx); })
           .child(div().w(28).flex_none().font_family("JetBrains Mono").font_semibold()
             .text_color(t.accent).child(link.hint.toUpperCase()))
-          .child(div().flex_1().min_w(0).truncate().tooltip(link.url).child(link.url)))))
+          .child(div().flex_1().min_w(0).truncate().tooltip(link.value??link.url).child(link.label??link.value??link.url)))))
       .child(div().border_t(1).border_color(t.border).pt(6).text_size(10.5).text_color(t.muted)
-        .child(`Hint / Enter opens · Shift copies · F2 ${this.mode === "inline" ? "window" : "inline"} · Esc closes`))
+        .child(`Hint / Enter selects · Shift copies · F2 ${this.mode === "inline" ? "window" : "inline"} · F3 action · Esc closes`))
       .when(Boolean(fallback), el=>el.child(div().text_size(10.5).text_color(t.muted).child(fallback)))
-      .when(Boolean(this.notice), el => el.child(div().text_size(10.5).text_color(t.muted).child(this.notice)));
+      .when(Boolean(this.notice) && this.selector?.match.type==="url", el => el.child(div().text_size(10.5).text_color(t.muted).child(this.notice)));
   }
 
   render() {
     const t=theme(),look=settings(),zoom=Number(look.zoom)||1;
     const viewport=window.viewport_size();
-    const typography=JSON.stringify([zoom,look.font,look.font_size,look.terminal_padding]);
+    const fontFamily=look.font_family??look.font??"JetBrains Mono";
+    const typography=JSON.stringify([zoom,fontFamily,look.font_size,look.terminal_padding]);
     this.initialView ??= {width:viewport.width,height:viewport.height,typography};
     const changed=this.initialView.width!==viewport.width || this.initialView.height!==viewport.height
       || this.initialView.typography!==typography;
@@ -176,9 +229,10 @@ export default class LinkHints extends View {
       && (modelPanes.length===1 || activeTab.zoomed));
     const positioned=this.snapshot.positioned && this.links.length
       && this.links.every(link=>link.positions.length && link.positions.every(p=>p.row<this.snapshot.rows && p.col<this.snapshot.cols));
-    const geometry=this.mode==="inline" && !changed && positioned ? gridGeometry({
+    const geometry=this.mode==="inline" && !this.error && !changed && positioned ? gridGeometry({
       root:layout(),viewport,zoom,padding:look.terminal_padding??[0,0],
       cols:this.snapshot.cols,rows:this.snapshot.rows,cellWidth:this.cellWidth,
+      cellWidthError:1/(FONT_PROBE_LENGTH*this.config.inline.device_scale),
       inline:this.config.inline,singlePane,
     }):null;
     let root=div().id("link-hints").relative().size_full().track_focus(this.handle)
@@ -187,9 +241,9 @@ export default class LinkHints extends View {
     // Measure the same medium-weight monospace advance as the terminal.
     // The transparent probe does not occupy layout space or run a timer.
     root=root.child(div().absolute().left(0).top(0).w_auto().h_auto().whitespace_nowrap().opacity(0)
-      .font_family(look.font??"JetBrains Mono").font_medium().text_size(Number(look.font_size)||14)
-      .child("M".repeat(128)).on_size_change((size,cx)=>{
-        const width=size.width/128;
+      .font_family(fontFamily).font_medium().text_size(Number(look.font_size)||14)
+      .child("M".repeat(FONT_PROBE_LENGTH)).on_size_change((size,cx)=>{
+        const width=size.width/FONT_PROBE_LENGTH;
         if(width>0 && Math.abs(width-(this.cellWidth??0))>0.001){this.cellWidth=width;cx.notify();}
       }));
     // Inline opens directly to badges. Wait for config, the snapshot, and
@@ -197,7 +251,7 @@ export default class LinkHints extends View {
     if (!this.configReady || (this.mode === "inline" && !this.error
       && (this.loading || !this.cellWidth))) return root;
     if (!geometry) {
-      const fallback=this.mode==="inline" && !this.loading && this.links.length
+      const fallback=this.mode==="inline" && !this.error && !this.loading && this.links.length
         ? "Inline alignment unavailable in this view · using window mode" : "";
       return root.child(this.panel(t,fallback).absolute().right(8).bottom(8));
     }
@@ -212,7 +266,7 @@ export default class LinkHints extends View {
         .w(width).px(4).h(Math.max(font+4,geometry.cellHeight/zoom-2)).rounded(3)
         .flex().items_center().font_family("JetBrains Mono").font_semibold().text_size(font)
         .bg(t.accent).text_color(t.accent_foreground).border(1).border_color(t.foreground)
-        .tooltip(link.url).cursor_pointer()
+        .tooltip(link.value??link.url).cursor_pointer()
         .on_mouse_down("left",(_e,cx)=>cx.stop_propagation())
         .on_click((event,cx)=>{cx.stop_propagation();this.activate(link,event.modifiers.shift,cx);})
         .child(link.hint.toUpperCase()));
